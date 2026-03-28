@@ -3,10 +3,13 @@ package com.example.chat_app_android.ui.screens
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,7 +63,7 @@ fun RegisterScreen(navController: NavController){
     var passwordError by remember { mutableStateOf(false) }
     var confirmPasswordError by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize(),
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFEDE8E6)),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally) {
 
@@ -101,22 +105,28 @@ fun RegisterScreen(navController: NavController){
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Button(
-            onClick = {
-                emailError = email.isBlank()
-                passwordError = password.isBlank()
-                usernameError = username.isBlank()
-                confirmPasswordError = confirmPassword.isBlank()
+        Row(modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,){
+            Button(
+                onClick = {
+                    emailError = email.isBlank()
+                    passwordError = password.isBlank()
+                    usernameError = username.isBlank()
+                    confirmPasswordError = confirmPassword.isBlank()
 
-                if (emailError || passwordError || usernameError || confirmPasswordError){
-                    Toast.makeText(context, "Please enter password and email", Toast.LENGTH_LONG).show()
-                }else {
-                    Log.i("Credentials", "Email: $email , Password: $password")
+                    if (emailError || passwordError || usernameError || confirmPasswordError){
+                        Toast.makeText(context, "Please enter password and email", Toast.LENGTH_LONG).show()
+                    }else {
+                        Log.i("Credentials", "Email: $email , Password: $password")
+                    }
                 }
+            ) {
+                Text(text = "Register")
             }
-        ) {
-            Text(text = "Register")
-        }
 
+            Button(onClick = {navController.navigate("login")}) {
+                Text(text = "Go back")
+            }
+        }
     }
 }
