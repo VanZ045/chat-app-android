@@ -1,6 +1,7 @@
 package com.example.chat_app_android.ui.screens
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,15 +25,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.example.chat_app_android.R
 
 @Composable
-fun LoginScreen(){
+fun LoginScreen(navController: NavController){
 
 
     var email by remember {
@@ -43,12 +46,17 @@ fun LoginScreen(){
         mutableStateOf("")
     }
 
+    val context = LocalContext.current
+
+    var emailError by remember { mutableStateOf(false) }
+    var passwordError by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally) {
 
-        Image(painter = painterResource(id = R.drawable.user_login_image),
-                contentDescription = "Login image", modifier = Modifier.size(300.dp)
+        Image(painter = painterResource(id = R.drawable.user),
+                contentDescription = "Login image", modifier = Modifier.size(200.dp)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -59,23 +67,30 @@ fun LoginScreen(){
 
         Text(text = "Login to your account")
 
-        OutlinedTextField(value = email, onValueChange = {email=it}, label = {
+        OutlinedTextField(value = email, onValueChange = {email=it }, label = {
             Text(text = "Email address")}, modifier = Modifier,leadingIcon = {
             Icon(Icons.Default.Email, contentDescription = null)
-        },shape = RoundedCornerShape(16.dp))
+        },shape = RoundedCornerShape(16.dp), isError = emailError)
 
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(value = password, onValueChange = {password=it}, label = {
             Text(text = "Password")} , visualTransformation = PasswordVisualTransformation(),leadingIcon = {
             Icon(Icons.Default.Lock, contentDescription = null)
-        }, shape = RoundedCornerShape(16.dp))
+        }, shape = RoundedCornerShape(16.dp), isError = passwordError)
 
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
             onClick = {
-                Log.i("Credentials", "Email: $email , Password: $password")
+                emailError = email.isBlank()
+                passwordError = password.isBlank()
+
+                if (emailError || passwordError){
+                    Toast.makeText(context, "Please enter password and email", Toast.LENGTH_LONG).show()
+                }else {
+                    Log.i("Credentials", "Email: $email , Password: $password")
+                }
             }
         ) {
             Text(text = "Login")
@@ -88,7 +103,7 @@ fun LoginScreen(){
         }
 
 
-        TextButton(onClick = {}) {
+        TextButton(onClick = {navController.navigate("register")}) {
             Text(text = "Don't have an account? Sign up here!")
         }
     }
