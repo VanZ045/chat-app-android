@@ -1,6 +1,5 @@
 package com.example.chat_app_android.ui.screens
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -18,6 +17,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,11 +35,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.chat_app_android.R
+import com.example.chat_app_android.ui.viewmodels.RegisterViewModel
 
 @Composable
-fun RegisterScreen(navController: NavController){
+fun RegisterScreen(navController: NavController , viewModel: RegisterViewModel = viewModel()){
 
     var username by remember {
         mutableStateOf("")
@@ -114,14 +116,24 @@ fun RegisterScreen(navController: NavController){
                     usernameError = username.isBlank()
                     confirmPasswordError = confirmPassword.isBlank()
 
+
                     if (emailError || passwordError || usernameError || confirmPasswordError){
                         Toast.makeText(context, "Please enter password and email", Toast.LENGTH_LONG).show()
                     }else {
-                        Log.i("Credentials", "Email: $email , Password: $password")
+                        viewModel.registerUser(navController)
                     }
-                }
+                },
+                enabled = !viewModel.isLoading
             ) {
-                Text(text = "Register")
+                if (viewModel.isLoading){
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                }else{
+                    Text(text = "Register")
+                }
+            }
+
+            viewModel.errorMessage?.let {
+                Text(text = it, color = Color.Red)
             }
 
             Button(onClick = {navController.navigate("login")}) {

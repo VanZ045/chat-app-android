@@ -1,6 +1,5 @@
 package com.example.chat_app_android.ui.screens
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -15,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -33,11 +33,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.chat_app_android.R
+import com.example.chat_app_android.ui.viewmodels.LoginViewModel
 
 @Composable
-fun LoginScreen(navController: NavController){
+fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewModel()){
 
 
     var email by remember {
@@ -91,11 +93,20 @@ fun LoginScreen(navController: NavController){
                 if (emailError || passwordError){
                     Toast.makeText(context, "Please enter password and email", Toast.LENGTH_LONG).show()
                 }else {
-                    Log.i("Credentials", "Email: $email , Password: $password")
+                    viewModel.loginUser(navController)
                 }
-            }
+            },
+            enabled = !viewModel.isLoading
         ) {
-            Text(text = "Login")
+            if (viewModel.isLoading) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+            } else {
+                Text("Login")
+            }
+        }
+
+        viewModel.errorMessage?.let {
+            Text(text = it, color = Color.Red)
         }
 
         Spacer(modifier = Modifier.height(32.dp))
