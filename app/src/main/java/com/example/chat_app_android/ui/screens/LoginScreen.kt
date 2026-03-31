@@ -11,15 +11,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,29 +36,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.chat_app_android.R
 import com.example.chat_app_android.ui.viewmodels.LoginViewModel
-
 @Composable
 fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewModel()){
-
-
-    var email by remember {
-        mutableStateOf("")
-    }
-
-    var password by remember {
-        mutableStateOf("")
-    }
-
-    val context = LocalContext.current
-
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("")}
     var emailError by remember { mutableStateOf(false) }
     var passwordError by remember { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }
+
+
+    val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFFEDE8E6)),
         verticalArrangement = Arrangement.Center,
@@ -72,16 +71,37 @@ fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewM
         Text(text = "Login to your account")
 
         OutlinedTextField(value = email, onValueChange = {email=it }, label = {
-            Text(text = "Email address")}, modifier = Modifier,leadingIcon = {
+            Text(text = "Email address")},leadingIcon = {
             Icon(Icons.Default.Email, contentDescription = null)
         },shape = RoundedCornerShape(16.dp), isError = emailError)
 
+
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(value = password, onValueChange = {password=it}, label = {
-            Text(text = "Password")} , visualTransformation = PasswordVisualTransformation(),leadingIcon = {
-            Icon(Icons.Default.Lock, contentDescription = null)
-        }, shape = RoundedCornerShape(16.dp), isError = passwordError)
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Password") },
+            visualTransformation = if (passwordVisible)
+                VisualTransformation.None
+            else
+                PasswordVisualTransformation(),
+            leadingIcon = {
+                Icon(Icons.Default.Lock, contentDescription = null)
+            },
+            trailingIcon = {
+                val image = if (passwordVisible)
+                    Icons.Default.Visibility
+                else
+                    Icons.Default.VisibilityOff
+
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(image, contentDescription = null)
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            isError = passwordError
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -93,7 +113,7 @@ fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewM
                 if (emailError || passwordError){
                     Toast.makeText(context, "Please enter password and email", Toast.LENGTH_LONG).show()
                 }else {
-                    viewModel.loginUser(navController)
+                    viewModel.loginUser(navController,email,password,context)
                 }
             },
             enabled = !viewModel.isLoading
@@ -105,21 +125,27 @@ fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewM
             }
         }
 
+        if (viewModel.successMessage!=null){
+            LaunchedEffect(viewModel.successMessage) {
+                Toast.makeText(context, viewModel.successMessage, Toast.LENGTH_SHORT).show()
+                viewModel.successMessage=null
+            }
+        }
+
         viewModel.errorMessage?.let {
             Text(text = it, color = Color.Red)
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        TextButton(onClick = {}) {
-            Text(text = "Forgot Password?")
-        }
-
+        Text(text = "Don't have an account yet?")
 
         TextButton(onClick = {navController.navigate("register")}) {
-            Text(text = "Don't have an account? Sign up here!")
+            Text(text = "Register here!")
+            Icon(Icons.Default.AccountBox,contentDescription = null, Modifier.size(16.dp))
         }
     }
+
 
 }
 
