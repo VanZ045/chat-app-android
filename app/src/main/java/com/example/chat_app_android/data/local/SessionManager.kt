@@ -7,24 +7,29 @@ class SessionManager(context: Context) {
 
     companion object {
         private const val KEY_TOKEN = "auth_token"
+        private const val KEY_EMAIL = "user_email"
     }
 
-    // ✅ Save token
     fun saveAuthToken(token: String) {
         prefs.edit().putString(KEY_TOKEN, token).apply()
     }
 
-    // ✅ Get token
     fun fetchAuthToken(): String? {
         return prefs.getString(KEY_TOKEN, null)
     }
 
-    // ✅ Check if logged in
+    fun saveEmail(email: String){
+        prefs.edit().putString(KEY_EMAIL, email).apply()
+    }
+
+    fun fetchEmail(): String? {
+        return prefs.getString(KEY_EMAIL, null)
+    }
+
     fun isLoggedIn(): Boolean {
         return fetchAuthToken() != null
     }
 
-    // ✅ Logout (clear session)
     fun clearSession() {
         prefs.edit().clear().apply()
     }

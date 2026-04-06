@@ -1,0 +1,250 @@
+package com.example.chat_app_android.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.example.chat_app_android.data.models.MessageModel
+import com.example.chat_app_android.ui.viewmodels.ChatViewModel
+import kotlin.math.absoluteValue
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatScreen(
+    navController: NavController,
+    receiverEmail: String,
+    receiverUsername: String,
+    viewModel: ChatViewModel = viewModel()
+){
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val sessionExpired by viewModel.sessionExpired.collectAsStateWithLifecycle()
+
+    var messageText by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+    val currentEmail = viewModel.getCurrentUserEmail()
+
+    LaunchedEffect(sessionExpired) {
+        if(sessionExpired){
+            navController.navigate("login"){
+                popUpTo(0) {inclusive = true}
+            }
+        }
+    }
+
+    LaunchedEffect(receiverEmail) {
+        viewModel.loadMessages(receiverEmail)
+    }
+
+    LaunchedEffect(messages.size) {
+        if(messages.isNotEmpty()){
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    val avatarColors = listOf(
+        Color(0xFF6200EE), Color(0xFF03DAC5), Color(0xFFFF5722),
+        Color(0xFF2196F3), Color(0xFF4CAF50), Color(0xFFFF9800),
+        Color(0xFFE91E63), Color(0xFF9C27B0)
+    )
+    val avatarColor = avatarColors[receiverEmail.hashCode().absoluteValue % avatarColors.size]
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .background(avatarColor, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ){
+                            Text(
+                                text = receiverUsername.first().uppercaseChar().toString(),
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = receiverUsername,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 18.sp
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = {navController.popBackStack()}) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .imePadding(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextField(
+                    value = messageText,
+                    onValueChange = {messageText = it},
+                    placeholder = {Text("Message")},
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    maxLines = 4
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = {
+                        if(messageText.isNotBlank()){
+                            viewModel.sendMessage(receiverEmail, messageText)
+                            messageText = ""
+                        }
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        }
+    ) {
+        paddingValues ->
+        when{
+            isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ){
+                    CircularProgressIndicator()
+                }
+            }
+            messages.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ){
+                    Text(
+                        text = "No messages yet.\nSay hello",
+                        color = Color.Gray,
+                        fontSize = 16.sp
+                    )
+                }
+            }
+            else -> {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
+                ) {
+                    items(messages){message ->
+                        MessageBubble(
+                            message = message,
+                            isOwnMessage = message.senderEmail == currentEmail
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageBubble(message: MessageModel, isOwnMessage: Boolean){
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if(isOwnMessage) Alignment.End else Alignment.Start
+    ){
+        Box(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .background(
+                    color = if(isOwnMessage) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(
+                        topStart = 18.dp,
+                        topEnd = 18.dp,
+                        bottomStart = if(isOwnMessage) 18.dp else 4.dp,
+                        bottomEnd = if(isOwnMessage) 4.dp else 18.dp
+                    )
+                )
+                .padding(horizontal = 14.dp, vertical = 8.dp)
+        ){
+            Text(
+                text = message.content,
+                color = if(isOwnMessage) Color.White
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 15.sp
+            )
+        }
+    }
+}

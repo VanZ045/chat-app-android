@@ -37,6 +37,7 @@ class LoginViewModel : ViewModel() {
                     val authBody = response.body()
                     if (authBody?.token != null) {
                         sessionManager.saveAuthToken(authBody.token)
+                        sessionManager.saveEmail(email)
                         successMessage = authBody.message
                         navController.navigate("chat-list") {
                             popUpTo("login") { inclusive = true }

@@ -145,7 +145,5 @@ fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewM
             Icon(Icons.Default.AccountBox,contentDescription = null, Modifier.size(16.dp))
         }
     }
-
-
 }
 
