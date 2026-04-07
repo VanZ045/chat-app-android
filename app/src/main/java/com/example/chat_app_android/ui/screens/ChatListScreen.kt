@@ -1,7 +1,6 @@
 package com.example.chat_app_android.ui.screens
 
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -41,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,8 +47,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.chat_app_android.data.local.SessionManager
-import com.example.chat_app_android.data.models.ChatPreview
+import com.example.chat_app_android.data.models.ChatSummaryModel
 import com.example.chat_app_android.data.models.UserModel
 import com.example.chat_app_android.ui.viewmodels.ChatListViewModel
 import kotlin.math.absoluteValue
@@ -65,9 +62,13 @@ fun ChatListScreen(
     var isSearchActive by remember { mutableStateOf(false) }
 
     val chats by viewModel.chats.collectAsStateWithLifecycle(emptyList())
+    val users by viewModel.users.collectAsStateWithLifecycle(emptyList())
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(false)
     val error by viewModel.error.collectAsStateWithLifecycle(null)
     val sessionExpired by viewModel.sessionExpired.collectAsStateWithLifecycle(false)
+    val navigateToChat by viewModel.navigateToChat.collectAsStateWithLifecycle(null)
+
+    val currentUserId = viewModel.getCurrentUserId()
 
     LaunchedEffect(sessionExpired) {
         if(sessionExpired){
@@ -77,15 +78,25 @@ fun ChatListScreen(
         }
     }
 
+    LaunchedEffect(navigateToChat) {
+        navigateToChat?.let{chat ->
+            navController.navigate("chat/${chat.chatId}/${chat.otherUsername}")
+            viewModel.clearNavigation()
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.loadUsers()
     }
 
-    val currentEmail = viewModel.getCurrentUserEmail()
+    val isSearching = searchQuery.isNotEmpty()
 
-    val filteredChats = chats.filter{preview ->
-        searchQuery.isEmpty() ||
-                preview.user.username.contains(searchQuery, ignoreCase = true)
+    val filteredUsers = users.filter {
+        it.username.contains(searchQuery, ignoreCase = true)
+    }
+
+    val filteredChats = chats.filter{
+        it.otherUsername.contains(searchQuery, ignoreCase = true)
     }
 
     Scaffold(
@@ -166,42 +177,53 @@ fun ChatListScreen(
                 }
             }
 
-            filteredChats.isEmpty() && searchQuery.isNotEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ){
-                    Text(text = "No users found", color = Color.Gray, fontSize = 16.sp)
-                }
-            }
-
-            filteredChats.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ){
-                    Text(text = "No other users yet", color = Color.Gray, fontSize = 16.sp)
-                }
-            }
-
             else -> {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
                 ) {
-                    items(filteredChats) {preview ->
-                        ChatPreviewItem(
-                            preview = preview,
-                            currentEmail = currentEmail,
-                            onClick = {
-                                navController.navigate("chat/${preview.user.email}/${preview.user.username}")
+                    if (isSearching) {
+                        if (filteredUsers.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) { Text("No users found", color = Color.Gray) }
                             }
-                        )
+                        } else {
+                            items(filteredUsers) { user ->
+                                UserItem(
+                                    user = user,
+                                    onClick = { viewModel.openOrCreateChat(user.id) }
+                                )
+                            }
+                        }
+                    } else {
+                        if (chats.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "No chats yet — tap to find someone!",
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                        } else {
+                            items(filteredChats) { chat ->
+                                ChatItem(
+                                    chat = chat,
+                                    formattedTime = viewModel.formatTime(chat.lastMessageTime),
+                                    currentUserId = currentUserId,
+                                    onClick = {
+                                        navController.navigate("chat/${chat.chatId}/${chat.otherUsername}")
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -210,13 +232,19 @@ fun ChatListScreen(
 }
 
 @Composable
-fun ChatPreviewItem(preview: ChatPreview, currentEmail: String, onClick: () -> Unit){
+fun ChatItem(chat: ChatSummaryModel, formattedTime: String, currentUserId: Long, onClick: () -> Unit){
     val avatarColors = listOf(
         Color(0xFF6200EE), Color(0xFF03DAC5), Color(0xFFFF5722),
         Color(0xFF2196F3), Color(0xFF4CAF50), Color(0xFFFF9800),
         Color(0xFFE91E63), Color(0xFF9C27B0)
     )
-    val avatarColor = avatarColors[preview.user.email.hashCode().absoluteValue % avatarColors.size]
+    val avatarColor = avatarColors[chat.otherUserId.toInt().absoluteValue % avatarColors.size]
+
+    val lastMessageText = when{
+        chat.lastMessage.isEmpty() -> "Tap to start chatting"
+        chat.lastMessageSenderId == currentUserId -> "You: ${chat.lastMessage}"
+        else -> chat.lastMessage
+    }
 
     Row(
         modifier = Modifier
@@ -232,18 +260,16 @@ fun ChatPreviewItem(preview: ChatPreview, currentEmail: String, onClick: () -> U
             contentAlignment = Alignment.Center
         ){
             Text(
-                text = preview.user.username.first().uppercaseChar().toString(),
+                text = chat.otherUsername.first().uppercaseChar().toString(),
                 color = Color.White,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
             )
         }
-
         Spacer(modifier = Modifier.width(14.dp))
-
         Column(modifier = Modifier.weight(1f)){
             Text(
-                text = preview.user.username,
+                text = chat.otherUsername,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
                 maxLines = 1,
@@ -251,27 +277,70 @@ fun ChatPreviewItem(preview: ChatPreview, currentEmail: String, onClick: () -> U
             )
             Spacer(modifier = Modifier.height(3.dp))
             Text(
-                text = if(preview.isMine) "You: ${preview.lastMessage}"
-                else preview.lastMessage,
+                text = lastMessageText,
                 color = Color.Gray,
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-
-        if(preview.lastMessageTime.isNotEmpty()){
+        if(formattedTime.isNotEmpty()){
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = preview.lastMessageTime,
+                text = formattedTime,
                 color = Color.Gray,
                 fontSize = 12.sp
             )
         }
     }
-
     HorizontalDivider(
         modifier = Modifier.padding(start = 84.dp, end = 16.dp),
         color = Color.LightGray.copy(alpha = 0.4f)
+    )
+}
+
+@Composable
+fun UserItem(user: UserModel, onClick: () -> Unit){
+    val avatarColors = listOf(
+        Color(0xFF6200EE), Color(0xFF03DAC5), Color(0xFFFF5722),
+        Color(0xFF2196F3), Color(0xFF4CAF50), Color(0xFFFF9800),
+        Color(0xFFE91E63), Color(0xFF9C27B0)
+    )
+    val avatarColor = avatarColors[user.id.toInt().absoluteValue % avatarColors.size]
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ){
+        Box(
+            modifier = Modifier
+                .size(54.dp)
+                .background(avatarColor, CircleShape),
+            contentAlignment = Alignment.Center
+        ){
+            Text(
+                text = user.username.first().uppercaseChar().toString(),
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = user.username,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 84.dp, end = 16.dp),
+        color = Color.Gray.copy(alpha = 0.4f)
     )
 }

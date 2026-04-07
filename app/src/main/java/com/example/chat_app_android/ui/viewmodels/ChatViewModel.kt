@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chat_app_android.data.local.SessionManager
 import com.example.chat_app_android.data.models.MessageModel
+import com.example.chat_app_android.data.models.SendMessageRequest
 import com.example.chat_app_android.data.network.RetrofitClient
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,26 +34,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val sessionExpired = _sessionExpired.asStateFlow()
 
     private var stompSession: StompSession? = null
-    private var currentEmail: String = ""
 
-    fun getCurrentUserEmail(): String = sessionManager.fetchEmail() ?: ""
+    fun getCurrentUserId(): Long = sessionManager.fetchUserId()
 
-    fun loadMessages(receiverEmail: String) {
+    fun loadMessages(chatId: Long) {
         val token = sessionManager.fetchAuthToken()
         if(token == null){
             _sessionExpired.value = true
             return
         }
-        currentEmail = getCurrentUserEmail()
 
         viewModelScope.launch {
             _isLoading.value = true
             try{
-                val response = RetrofitClient.apiService.getConversation(
-                    token = "Bearer $token",
-                    email1 = currentEmail,
-                    email2 = receiverEmail
-                )
+                val response = RetrofitClient.apiService.getMessages(token = "Bearer $token", chatId)
                 when(response.code()){
                     200 -> _messages.value = response.body() ?: emptyList()
                     401 -> {
@@ -67,50 +62,52 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _isLoading.value = false
             }
-            connectWebSocket()
+            connectWebSocket(chatId)
         }
     }
 
-    private fun connectWebSocket(){
+    private fun connectWebSocket(chatId: Long){
         viewModelScope.launch {
             try{
                 val client = StompClient(OkHttpWebSocketClient())
-                stompSession = client.connect("ws://10.0.2.2:8080/ws")
+                // for emulator use ws://10.0.2.2:8080/ws
+                stompSession = client.connect("ws://192.168.0.x:8080/ws")
 
-                stompSession!!.subscribeText("/topic/messages/$currentEmail")
+                stompSession!!.subscribeText("/topic/chats/$chatId")
                     .collect{frame ->
                         try {
-                            val incoming = gson.fromJson(frame, IncomingMessage::class.java)
-                            val newMessage = MessageModel(
-                                id = System.currentTimeMillis(),
-                                senderEmail = incoming.senderEmail ?: "",
-                                receiverEmail = incoming.receiverEmail ?: "",
-                                content = incoming.content ?: "",
-                                timestamp = ""
-                            )
-                            _messages.value += newMessage
+                            val incoming = gson.fromJson(frame, MessageModel::class.java)
+                            if(_messages.value.none {it.id == incoming.id}){
+                                _messages.value += incoming
+                            }
                         }catch(e: Exception){}
                     }
             }catch(e: Exception){
-                _error.value = "Real-time connection failed - messages may be delayed"
+                _error.value = "Real-time connection failed"
             }
         }
     }
 
-    fun sendMessage(receiverEmail: String, content: String){
+    fun sendMessage(chatId: Long, content: String){
         if(content.isBlank()) return
+        val token = sessionManager.fetchAuthToken()
+        if(token == null){
+            _sessionExpired.value = true
+            return
+        }
 
         viewModelScope.launch {
             try{
-                val message = mapOf(
-                    "senderEmail" to currentEmail,
-                    "receiverEmail" to receiverEmail,
-                    "content" to content
+                val response = RetrofitClient.apiService.sendMessage(
+                    "Bearer $token",
+                    chatId,
+                    SendMessageRequest(content)
                 )
-                stompSession?.sendText(
-                    "app/chat.send",
-                    gson.toJson(message)
-                )
+                when(response.code()){
+                    200 -> {}
+                    401 -> {sessionManager.clearSession(); _sessionExpired.value = true}
+                    else -> _error.value = "Failed to send message"
+                }
             }catch(e: Exception){
                 _error.value = "Failed to send message"
             }
@@ -123,10 +120,4 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             stompSession?.disconnect()
         }
     }
-
-    private data class IncomingMessage(
-        val senderEmail: String? = null,
-        val receiverEmail: String? = null,
-        val content: String? = null
-    )
 }

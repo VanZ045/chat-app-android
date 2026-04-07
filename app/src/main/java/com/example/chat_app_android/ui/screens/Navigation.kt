@@ -33,18 +33,19 @@ fun App() {
         composable("profile"){
             ProfileScreen(navController)
         }
-        composable(route = "chat/{receiverEmail}/{receiverUsername}",
+        composable(
+            route = "chat/{chatId}/{otherUsername}",
             arguments = listOf(
-                navArgument("receiverEmail") {type = NavType.StringType},
-                navArgument("receiverUsername") {type = NavType.StringType}
+                navArgument("chatId") {type = NavType.LongType},
+                navArgument("otherUsername") {type = NavType.StringType}
             )
         ){backStackEntry ->
-            val receiverEmail = backStackEntry.arguments?.getString("receiverEmail") ?: ""
-            val receiverUsername = backStackEntry.arguments?.getString("receiverUsername") ?: ""
+            val chatId = backStackEntry.arguments?.getLong("chatId") ?: 0L
+            val otherUsername = backStackEntry.arguments?.getString("otherUsername") ?: ""
             ChatScreen(
                 navController = navController,
-                receiverEmail = receiverEmail,
-                receiverUsername = receiverUsername
+                chatId = chatId,
+                otherUsername = otherUsername
             )
         }
     }

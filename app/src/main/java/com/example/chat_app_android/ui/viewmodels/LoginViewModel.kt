@@ -39,6 +39,14 @@ class LoginViewModel : ViewModel() {
                         sessionManager.saveAuthToken(authBody.token)
                         sessionManager.saveEmail(email)
                         successMessage = authBody.message
+
+                        val meResponse = RetrofitClient.apiService.getMe("Bearer ${authBody.token}")
+                        if (meResponse.isSuccessful){
+                            meResponse.body()?.let {
+                                sessionManager.saveUserId(it.id)
+                                sessionManager.saveUsername(it.username)
+                            }
+                        }
                         navController.navigate("chat-list") {
                             popUpTo("login") { inclusive = true }
                         }

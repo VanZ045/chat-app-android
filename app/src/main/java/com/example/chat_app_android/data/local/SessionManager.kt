@@ -8,6 +8,8 @@ class SessionManager(context: Context) {
     companion object {
         private const val KEY_TOKEN = "auth_token"
         private const val KEY_EMAIL = "user_email"
+        private const val KEY_USER_ID = "user_id"
+        private const val KEY_USERNAME = "username"
     }
 
     fun saveAuthToken(token: String) {
@@ -24,6 +26,22 @@ class SessionManager(context: Context) {
 
     fun fetchEmail(): String? {
         return prefs.getString(KEY_EMAIL, null)
+    }
+
+    fun saveUserId(userId: Long){
+        prefs.edit().putLong(KEY_USER_ID, userId).apply()
+    }
+
+    fun fetchUserId(): Long{
+        return prefs.getLong(KEY_USER_ID, -1L)
+    }
+
+    fun saveUsername(username: String){
+        prefs.edit().putString(KEY_USERNAME, username).apply()
+    }
+
+    fun fetchUsername(): String?{
+        return prefs.getString(KEY_USERNAME, null)
     }
 
     fun isLoggedIn(): Boolean {

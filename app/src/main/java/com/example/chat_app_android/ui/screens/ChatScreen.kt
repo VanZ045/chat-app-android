@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,9 +21,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -56,8 +56,8 @@ import kotlin.math.absoluteValue
 @Composable
 fun ChatScreen(
     navController: NavController,
-    receiverEmail: String,
-    receiverUsername: String,
+    chatId: Long,
+    otherUsername: String,
     viewModel: ChatViewModel = viewModel()
 ){
     val messages by viewModel.messages.collectAsStateWithLifecycle()
@@ -66,7 +66,7 @@ fun ChatScreen(
 
     var messageText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    val currentEmail = viewModel.getCurrentUserEmail()
+    val currentUserId = viewModel.getCurrentUserId()
 
     LaunchedEffect(sessionExpired) {
         if(sessionExpired){
@@ -76,8 +76,8 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(receiverEmail) {
-        viewModel.loadMessages(receiverEmail)
+    LaunchedEffect(chatId) {
+        viewModel.loadMessages(chatId)
     }
 
     LaunchedEffect(messages.size) {
@@ -91,7 +91,7 @@ fun ChatScreen(
         Color(0xFF2196F3), Color(0xFF4CAF50), Color(0xFFFF9800),
         Color(0xFFE91E63), Color(0xFF9C27B0)
     )
-    val avatarColor = avatarColors[receiverEmail.hashCode().absoluteValue % avatarColors.size]
+    val avatarColor = avatarColors[otherUsername.hashCode().absoluteValue % avatarColors.size]
 
     Scaffold(
         topBar = {
@@ -107,7 +107,7 @@ fun ChatScreen(
                             contentAlignment = Alignment.Center
                         ){
                             Text(
-                                text = receiverUsername.first().uppercaseChar().toString(),
+                                text = otherUsername.first().uppercaseChar().toString(),
                                 color = Color.White,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
@@ -115,7 +115,7 @@ fun ChatScreen(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = receiverUsername,
+                            text = otherUsername,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 18.sp
                         )
@@ -123,7 +123,7 @@ fun ChatScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = {navController.popBackStack()}) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -139,7 +139,7 @@ fun ChatScreen(
                 TextField(
                     value = messageText,
                     onValueChange = {messageText = it},
-                    placeholder = {Text("Message")},
+                    placeholder = {Text("Message...")},
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp),
                     colors = TextFieldDefaults.colors(
@@ -152,7 +152,7 @@ fun ChatScreen(
                 IconButton(
                     onClick = {
                         if(messageText.isNotBlank()){
-                            viewModel.sendMessage(receiverEmail, messageText)
+                            viewModel.sendMessage(chatId, messageText)
                             messageText = ""
                         }
                     },
@@ -209,7 +209,7 @@ fun ChatScreen(
                     items(messages){message ->
                         MessageBubble(
                             message = message,
-                            isOwnMessage = message.senderEmail == currentEmail
+                            isOwnMessage = message.senderId == currentUserId
                         )
                     }
                 }
@@ -220,6 +220,12 @@ fun ChatScreen(
 
 @Composable
 fun MessageBubble(message: MessageModel, isOwnMessage: Boolean){
+    val formattedTime = remember(message.createdAt){
+        try {
+            val dt = java.time.LocalDateTime.parse(message.createdAt)
+            dt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+        }catch (e: Exception){""}
+    }
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if(isOwnMessage) Alignment.End else Alignment.Start
@@ -239,12 +245,24 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean){
                 )
                 .padding(horizontal = 14.dp, vertical = 8.dp)
         ){
-            Text(
-                text = message.content,
-                color = if(isOwnMessage) Color.White
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 15.sp
-            )
+            Column {
+                Text(
+                    text = message.content,
+                    color = if (isOwnMessage) Color.White
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 15.sp
+                )
+                if(formattedTime.isNotEmpty()){
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = formattedTime,
+                        color = if(isOwnMessage) Color.White.copy(alpha = 0.7f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        fontSize = 11.sp,
+                        modifier = Modifier.align(Alignment.End)
+                    )
+                }
+            }
         }
     }
 }
