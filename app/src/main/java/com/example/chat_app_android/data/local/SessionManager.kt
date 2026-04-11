@@ -20,6 +20,19 @@ class SessionManager(context: Context) {
         return prefs.getString(KEY_TOKEN, null)
     }
 
+    fun fetchTokenExpiry(): Long{
+        val token = fetchAuthToken() ?: return 0L
+        return try {
+            val payload = token.split(".")[1]
+            val decoded = android.util.Base64.decode(payload, android.util.Base64.URL_SAFE)
+            val json = String(decoded)
+            val expSeconds = org.json.JSONObject(json).getLong("exp")
+            expSeconds * 1000L
+        }catch (e: Exception){
+            0L
+        }
+    }
+
     fun saveEmail(email: String){
         prefs.edit().putString(KEY_EMAIL, email).apply()
     }

@@ -5,17 +5,28 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chat_app_android.data.local.SessionManager
 import com.example.chat_app_android.data.models.ChatSummaryModel
+import com.example.chat_app_android.data.models.ChatUpdateEvent
+import com.example.chat_app_android.data.models.TypingRequest
 import com.example.chat_app_android.data.models.UserModel
 import com.example.chat_app_android.data.network.RetrofitClient
+import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.hildan.krossbow.stomp.StompClient
+import org.hildan.krossbow.stomp.StompSession
+import org.hildan.krossbow.stomp.subscribeText
+import org.hildan.krossbow.websocket.okhttp.OkHttpWebSocketClient
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 class ChatListViewModel(application: Application) : AndroidViewModel(application){
 
     private val sessionManager = SessionManager(application)
+    private val gson = Gson()
+    private var stompSession: StompSession? = null
+
+    private val subscribedTypingChatIds = mutableSetOf<Long>()
 
     private val _chats = MutableStateFlow<List<ChatSummaryModel>>(emptyList())
     val chats = _chats.asStateFlow()
@@ -35,6 +46,9 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
     private val _navigateToChat = MutableStateFlow<ChatSummaryModel?>(null)
     val navigateToChat = _navigateToChat.asStateFlow()
 
+    private val _typingChats = MutableStateFlow<Set<Long>>(emptySet())
+    val typingChats = _typingChats.asStateFlow()
+
     fun loadUsers(){
         val token = sessionManager.fetchAuthToken()
         if(token == null){
@@ -49,22 +63,87 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
                 val usersResponse = RetrofitClient.apiService.getAllUsers("Bearer $token")
                 val chatsResponse = RetrofitClient.apiService.getChats("Bearer $token")
 
-                if (usersResponse.isSuccessful && chatsResponse.isSuccessful) {
-                    val userList = usersResponse.body() ?: emptyList()
-                    val chatList = chatsResponse.body() ?: emptyList()
-
-                    _users.value = userList
-                    _chats.value = chatList
-                } else if (usersResponse.code() == 401 || chatsResponse.code() == 401) {
+                if (usersResponse.code() == 401 || chatsResponse.code() == 401) {
                     sessionManager.clearSession()
                     _sessionExpired.value = true
+                    return@launch
+                }
+
+                if (usersResponse.isSuccessful) {
+                    _users.value = usersResponse.body() ?: emptyList()
                 } else {
-                    _error.value = "Server error: ${usersResponse.code()}"
+                    _error.value = "Failed to load users"
+                }
+
+                if (chatsResponse.isSuccessful) {
+                    _chats.value = chatsResponse.body() ?: emptyList()
+                } else {
+                    _error.value = "Failed to load chats"
                 }
             } catch (e: Exception) {
-                _error.value = "Network error: ${e.message}"
+                _error.value = "Network error"
             } finally {
                 _isLoading.value = false
+            }
+            connectToUserUpdates()
+        }
+    }
+
+    private fun connectToUserUpdates(){
+        val userId = sessionManager.fetchUserId()
+        if(userId == -1L)return
+
+        viewModelScope.launch {
+            try{
+                val client = StompClient(OkHttpWebSocketClient())
+                // for emulator use ws://10.0.2.2:8080/ws
+                stompSession = client.connect("ws://192.168.x.x:8080/ws")
+
+                launch{
+                    stompSession!!.subscribeText("/topic/user/$userId")
+                        .collect{frame ->
+                            try{
+                                val event = gson.fromJson(frame, ChatUpdateEvent::class.java)
+                                val updated = _chats.value.map{chat ->
+                                    if(chat.chatId == event.chatId){
+                                        chat.copy(
+                                            lastMessage = event.lastMessage,
+                                            lastMessageTime = event.lastMessageTime,
+                                            lastMessageSenderId = event.lastMessageSenderId
+                                        )
+                                    }else chat
+                                }.sortedByDescending { it.lastMessageTime }
+                                _chats.value = updated
+                            }catch(e: Exception){}
+                        }
+                }
+                subscribeTypingForCurrentChats()
+            }catch(e: Exception){}
+        }
+    }
+
+    private fun subscribeTypingForCurrentChats(){
+        val userId = sessionManager.fetchUserId()
+
+        _chats.value.forEach { chat ->
+            if(subscribedTypingChatIds.contains(chat.chatId)) return@forEach
+            subscribedTypingChatIds.add(chat.chatId)
+            viewModelScope.launch {
+                try{
+                    stompSession!!.subscribeText("/topic/chats/${chat.chatId}/typing")
+                        .collect { frame ->
+                            try{
+                                val event = gson.fromJson(frame, TypingRequest::class.java)
+                                if(event.senderId != userId){
+                                    if(event.isTyping){
+                                        _typingChats.value += chat.chatId
+                                    }else{
+                                        _typingChats.value -= chat.chatId
+                                    }
+                                }
+                            }catch (e: Exception){}
+                        }
+                }catch (e: Exception){}
             }
         }
     }
@@ -79,7 +158,16 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
             try {
                 val response = RetrofitClient.apiService.createOrGetChat("Bearer $token", otherUserId)
                 when(response.code()){
-                    200 -> _navigateToChat.value = response.body()
+                    200 -> {
+                        val chat = response.body()
+                        if(chat != null){
+                            if(_chats.value.none{it.chatId == chat.chatId}){
+                                _chats.value += chat
+                                subscribeTypingForCurrentChats()
+                            }
+                            _navigateToChat.value = chat
+                        }
+                    }
                     401 -> {sessionManager.clearSession(); _sessionExpired.value = true}
                     else -> _error.value = "Failed to open chat"
                 }
@@ -105,5 +193,10 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
                     dt.format(DateTimeFormatter.ofPattern("dd/MM"))
             }
         }catch (e: Exception) {""}
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        viewModelScope.launch { stompSession?.disconnect() }
     }
 }

@@ -5,9 +5,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chat_app_android.data.local.SessionManager
 import com.example.chat_app_android.data.models.MessageModel
+import com.example.chat_app_android.data.models.SeenEvent
 import com.example.chat_app_android.data.models.SendMessageRequest
+import com.example.chat_app_android.data.models.TypingRequest
 import com.example.chat_app_android.data.network.RetrofitClient
 import com.google.gson.Gson
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -20,6 +24,9 @@ import org.hildan.krossbow.websocket.okhttp.OkHttpWebSocketClient
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionManager = SessionManager(application)
     private val gson = Gson()
+
+    private var typingJob: Job? = null
+    private var isSendingTyping = false
 
     private val _messages = MutableStateFlow<List<MessageModel>>(emptyList())
     val messages = _messages.asStateFlow()
@@ -34,6 +41,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val sessionExpired = _sessionExpired.asStateFlow()
 
     private var stompSession: StompSession? = null
+
+    private val _isOtherTyping = MutableStateFlow(false)
+    val isOtherTyping = _isOtherTyping.asStateFlow()
+
+    private val _failedMessageContent = MutableStateFlow<String?>(null)
+    val failedMessageContent = _failedMessageContent.asStateFlow()
+
 
     fun getCurrentUserId(): Long = sessionManager.fetchUserId()
 
@@ -62,8 +76,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _isLoading.value = false
             }
+            markAsSeen(chatId)
             connectWebSocket(chatId)
         }
+    }
+    private fun markAsSeen(chatId: Long){
+        val token = sessionManager.fetchAuthToken() ?: return
+        viewModelScope.launch {
+            try{
+                RetrofitClient.apiService.markAsSeen("Bearer $token", chatId)
+            }catch (e: Exception) {}
+        }
+
     }
 
     private fun connectWebSocket(chatId: Long){
@@ -71,17 +95,50 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try{
                 val client = StompClient(OkHttpWebSocketClient())
                 // for emulator use ws://10.0.2.2:8080/ws
-                stompSession = client.connect("ws://192.168.0.x:8080/ws")
+                stompSession = client.connect("ws://192.168.x.x:8080/ws")
 
-                stompSession!!.subscribeText("/topic/chats/$chatId")
-                    .collect{frame ->
-                        try {
-                            val incoming = gson.fromJson(frame, MessageModel::class.java)
-                            if(_messages.value.none {it.id == incoming.id}){
-                                _messages.value += incoming
-                            }
-                        }catch(e: Exception){}
-                    }
+                launch{
+                    stompSession!!.subscribeText("/topic/chats/$chatId")
+                        .collect{frame ->
+                            try {
+                                val incoming = gson.fromJson(frame, MessageModel::class.java)
+                                if(_messages.value.none {it.id == incoming.id}){
+                                    _messages.value += incoming
+                                    if(incoming.senderId != getCurrentUserId()){
+                                        markAsSeen(chatId)
+                                    }
+                                }
+                            }catch(e: Exception){}
+                        }
+                }
+                launch {
+                    stompSession!!.subscribeText("/topic/chats/$chatId/typing")
+                        .collect{frame ->
+                            try{
+                                val event = gson.fromJson(frame, TypingRequest::class.java)
+                                if(event.senderId != getCurrentUserId()){
+                                    _isOtherTyping.value = event.isTyping
+                                }
+                            }catch (e: Exception){}
+                        }
+                }
+                launch {
+                    stompSession!!.subscribeText("/topic/chats/$chatId/seen")
+                        .collect { frame ->
+                            try{
+                                val event = gson.fromJson(frame, SeenEvent::class.java)
+                                val currentUserId = getCurrentUserId()
+                                if(event.seenByUserId != currentUserId){
+                                    _messages.value = _messages.value.map{msg ->
+                                        if(msg.senderId == currentUserId && msg.status != "SEEN"){
+                                            msg.copy(status = "SEEN")
+                                        }else msg
+                                    }
+                                }
+                            }catch (e: Exception){}
+                        }
+                }
+
             }catch(e: Exception){
                 _error.value = "Real-time connection failed"
             }
@@ -106,16 +163,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 when(response.code()){
                     200 -> {}
                     401 -> {sessionManager.clearSession(); _sessionExpired.value = true}
-                    else -> _error.value = "Failed to send message"
+                    else -> _failedMessageContent.value = content
                 }
             }catch(e: Exception){
-                _error.value = "Failed to send message"
+                _failedMessageContent.value = content
+            }
+        }
+    }
+
+    fun retryMessage(chatId: Long, content: String){
+        _failedMessageContent.value = null
+        sendMessage(chatId, content)
+    }
+
+    fun clearFailedMessage(){
+        _failedMessageContent.value = null
+    }
+
+    fun onUserTyping(chatId: Long){
+        val userId = sessionManager.fetchUserId()
+        val username = sessionManager.fetchUsername() ?: return
+
+        viewModelScope.launch {
+            if(!isSendingTyping){
+                isSendingTyping = true
+                try {
+                    stompSession?.sendText("/app/typing",
+                        gson.toJson(TypingRequest(chatId, userId, username, true)))
+                }catch (e: Exception){}
+            }
+        }
+
+        typingJob?.cancel()
+        typingJob = viewModelScope.launch {
+            delay(2000)
+            try {
+                stompSession?.sendText("/app/typing",
+                    gson.toJson(TypingRequest(chatId, userId, username, false)))
+                isSendingTyping = false
+            }catch (e: Exception){
+                isSendingTyping = false
             }
         }
     }
 
     override fun onCleared() {
         super.onCleared()
+        typingJob?.cancel()
         viewModelScope.launch {
             stompSession?.disconnect()
         }

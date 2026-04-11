@@ -26,6 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,12 +63,13 @@ fun ChatListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
-    val chats by viewModel.chats.collectAsStateWithLifecycle(emptyList())
-    val users by viewModel.users.collectAsStateWithLifecycle(emptyList())
+    val chats by viewModel.chats.collectAsStateWithLifecycle()
+    val users by viewModel.users.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(false)
     val error by viewModel.error.collectAsStateWithLifecycle(null)
     val sessionExpired by viewModel.sessionExpired.collectAsStateWithLifecycle(false)
     val navigateToChat by viewModel.navigateToChat.collectAsStateWithLifecycle(null)
+    val typingChats by viewModel.typingChats.collectAsStateWithLifecycle()
 
     val currentUserId = viewModel.getCurrentUserId()
 
@@ -218,6 +221,7 @@ fun ChatListScreen(
                                     chat = chat,
                                     formattedTime = viewModel.formatTime(chat.lastMessageTime),
                                     currentUserId = currentUserId,
+                                    isTyping = typingChats.contains(chat.chatId),
                                     onClick = {
                                         navController.navigate("chat/${chat.chatId}/${chat.otherUsername}")
                                     }
@@ -232,7 +236,7 @@ fun ChatListScreen(
 }
 
 @Composable
-fun ChatItem(chat: ChatSummaryModel, formattedTime: String, currentUserId: Long, onClick: () -> Unit){
+fun ChatItem(chat: ChatSummaryModel, formattedTime: String, currentUserId: Long, isTyping: Boolean, onClick: () -> Unit){
     val avatarColors = listOf(
         Color(0xFF6200EE), Color(0xFF03DAC5), Color(0xFFFF5722),
         Color(0xFF2196F3), Color(0xFF4CAF50), Color(0xFFFF9800),
@@ -241,6 +245,7 @@ fun ChatItem(chat: ChatSummaryModel, formattedTime: String, currentUserId: Long,
     val avatarColor = avatarColors[chat.otherUserId.toInt().absoluteValue % avatarColors.size]
 
     val lastMessageText = when{
+        isTyping -> "typing..."
         chat.lastMessage.isEmpty() -> "Tap to start chatting"
         chat.lastMessageSenderId == currentUserId -> "You: ${chat.lastMessage}"
         else -> chat.lastMessage
@@ -278,8 +283,9 @@ fun ChatItem(chat: ChatSummaryModel, formattedTime: String, currentUserId: Long,
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = lastMessageText,
-                color = Color.Gray,
+                color = if(isTyping) MaterialTheme.colorScheme.primary else Color.Gray,
                 fontSize = 13.sp,
+                fontStyle = if(isTyping) FontStyle.Italic else FontStyle.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

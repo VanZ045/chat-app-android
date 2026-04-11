@@ -1,11 +1,9 @@
 package com.example.chat_app_android.data.models
 
-data class MessageModel (
-    val id: Long,
+data class TypingRequest(
     val chatId: Long,
     val senderId: Long,
     val senderUsername: String,
-    val content: String,
-    val createdAt: String,
-    val status: String = "SENT"
+    @com.google.gson.annotations.SerializedName("typing")
+    val isTyping: Boolean
 )

@@ -43,4 +43,10 @@ interface ApiService{
         @Path("chatId") chatId: Long,
         @Body request: SendMessageRequest
     ): Response<MessageModel>
+
+    @POST("api/chats/{chatId}/seen")
+    suspend fun markAsSeen(
+        @Header("Authorization") token: String,
+        @Path("chatId") chatId: Long
+    ): Response<Unit>
 }

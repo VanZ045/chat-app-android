@@ -1,5 +1,10 @@
 package com.example.chat_app_android.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +34,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -42,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,10 +73,13 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val sessionExpired by viewModel.sessionExpired.collectAsStateWithLifecycle()
+    val isOtherTyping by viewModel.isOtherTyping.collectAsStateWithLifecycle()
+    val failedMessageContent by viewModel.failedMessageContent.collectAsStateWithLifecycle()
 
     var messageText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val currentUserId = viewModel.getCurrentUserId()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(sessionExpired) {
         if(sessionExpired){
@@ -93,7 +106,25 @@ fun ChatScreen(
     )
     val avatarColor = avatarColors[otherUsername.hashCode().absoluteValue % avatarColors.size]
 
+    val lastOwnMessageId = messages.lastOrNull{it.senderId == currentUserId}?.id
+
+    LaunchedEffect(failedMessageContent) {
+        failedMessageContent?.let {content ->
+            val result = snackbarHostState.showSnackbar(
+                message = "Message failed to send",
+                actionLabel = "Retry",
+                duration = SnackbarDuration.Long
+            )
+            if(result == SnackbarResult.ActionPerformed){
+                viewModel.retryMessage(chatId, content)
+            }else{
+                viewModel.clearFailedMessage()
+            }
+        }
+    }
+
     Scaffold(
+        snackbarHost = {SnackbarHost(snackbarHostState)},
         topBar = {
             TopAppBar(
                 title = {
@@ -138,7 +169,8 @@ fun ChatScreen(
             ) {
                 TextField(
                     value = messageText,
-                    onValueChange = {messageText = it},
+                    onValueChange = {messageText = it
+                                    if(it.isNotEmpty()) viewModel.onUserTyping(chatId)},
                     placeholder = {Text("Message...")},
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp),
@@ -171,47 +203,77 @@ fun ChatScreen(
         }
     ) {
         paddingValues ->
-        when{
-            isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ){
-                    CircularProgressIndicator()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when {
+                isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
-            }
-            messages.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ){
-                    Text(
-                        text = "No messages yet.\nSay hello",
-                        color = Color.Gray,
-                        fontSize = 16.sp
-                    )
-                }
-            }
-            else -> {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    items(messages){message ->
-                        MessageBubble(
-                            message = message,
-                            isOwnMessage = message.senderId == currentUserId
+
+                messages.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No messages yet.\nSay hello",
+                            color = Color.Gray,
+                            fontSize = 16.sp
                         )
                     }
+                }
+
+                else -> {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(
+                            top = 12.dp,
+                            bottom = if (isOtherTyping) 36.dp else 12.dp
+                        )
+                    ) {
+                        items(messages) { message ->
+                            MessageBubble(
+                                message = message,
+                                isOwnMessage = message.senderId == currentUserId,
+                                showStatusLabel = message.id == lastOwnMessageId && message.senderId == currentUserId
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Typing indicator anchored to bottom of the Box
+            AnimatedVisibility(
+                visible = isOtherTyping,
+                modifier = Modifier.align(Alignment.BottomStart),
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "$otherUsername is typing...",
+                        color = Color.Gray,
+                        fontSize = 13.sp,
+                        fontStyle = FontStyle.Italic
+                    )
                 }
             }
         }
@@ -219,7 +281,7 @@ fun ChatScreen(
 }
 
 @Composable
-fun MessageBubble(message: MessageModel, isOwnMessage: Boolean){
+fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel: Boolean){
     val formattedTime = remember(message.createdAt){
         try {
             val dt = java.time.LocalDateTime.parse(message.createdAt)
@@ -263,6 +325,15 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean){
                     )
                 }
             }
+        }
+        if(isOwnMessage && showStatusLabel && message.status == "SEEN"){
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "Seen",
+                color = Color.Gray,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(end = 4.dp)
+            )
         }
     }
 }
