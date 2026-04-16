@@ -6,6 +6,7 @@ import com.example.chat_app_android.data.models.ChatSummaryModel
 import com.example.chat_app_android.data.models.MessageModel
 import com.example.chat_app_android.data.models.SendMessageRequest
 import com.example.chat_app_android.data.models.UserModel
+import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -49,4 +50,14 @@ interface ApiService{
         @Header("Authorization") token: String,
         @Path("chatId") chatId: Long
     ): Response<Unit>
+
+    @Multipart
+    @POST("api/chats/{chatId}/images")
+    suspend fun uploadImage(
+        @Header("Authorization") token : String,
+        @Path("chatId") chatId: Long,
+        @Part file: MultipartBody.Part
+    ) : Response<MessageModel>
+
+
 }

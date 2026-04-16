@@ -20,6 +20,12 @@ import org.hildan.krossbow.stomp.StompSession
 import org.hildan.krossbow.stomp.sendText
 import org.hildan.krossbow.stomp.subscribeText
 import org.hildan.krossbow.websocket.okhttp.OkHttpWebSocketClient
+import android.net.Uri
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionManager = SessionManager(application)
@@ -95,7 +101,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try{
                 val client = StompClient(OkHttpWebSocketClient())
                 // for emulator use ws://10.0.2.2:8080/ws
-                stompSession = client.connect("ws://192.168.x.x:8080/ws")
+                stompSession = client.connect("ws://10.0.2.2:8080/ws")
 
                 launch{
                     stompSession!!.subscribeText("/topic/chats/$chatId")
@@ -213,5 +219,70 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             stompSession?.disconnect()
         }
+    }
+
+    fun uploadImage(chatId: Long, imageUri: Uri) {
+        val token = sessionManager.fetchAuthToken()
+        if (token == null) {
+            _sessionExpired.value = true
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val file = uriToFile(imageUri)
+
+                val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
+                val multipartBody = MultipartBody.Part.createFormData(
+                    "file",
+                    file.name,
+                    requestFile
+                )
+
+                val response = RetrofitClient.apiService.uploadImage(
+                    token = "Bearer $token",
+                    chatId = chatId,
+                    file = multipartBody
+                )
+
+                when (response.code()) {
+                    200 -> {
+                        val uploadedMessage = response.body()
+                        if (uploadedMessage != null) {
+                            if (_messages.value.none { it.id == uploadedMessage.id }) {
+                                _messages.value = _messages.value + uploadedMessage
+                            }
+                        }
+                    }
+
+                    401 -> {
+                        sessionManager.clearSession()
+                        _sessionExpired.value = true
+                    }
+
+                    else -> {
+                        _error.value = "Failed to upload image"
+                    }
+                }
+
+            } catch (e: Exception) {
+                _error.value = "Image upload failed"
+            }
+        }
+    }
+
+    private fun uriToFile(uri: Uri): File {
+        val context = getApplication<Application>().applicationContext
+        val contentResolver = context.contentResolver
+
+        val tempFile = File.createTempFile("upload_", ".jpg", context.cacheDir)
+
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            FileOutputStream(tempFile).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        }
+
+        return tempFile
     }
 }

@@ -19,11 +19,6 @@ class LoginViewModel : ViewModel() {
     var isLoading by mutableStateOf(false)
     var errorMessage by mutableStateOf<String?>(null)
     var successMessage by mutableStateOf<String?>(null)
-
-
-
-
-
     fun loginUser(navController: NavController, email: String, password: String , context: Context) {
         viewModelScope.launch {
             val sessionManager = SessionManager(context)

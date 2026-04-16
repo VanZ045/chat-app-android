@@ -5,7 +5,9 @@ data class MessageModel (
     val chatId: Long,
     val senderId: Long,
     val senderUsername: String,
-    val content: String,
+    val type: String,
+    val content: String?,
+    val imageUrl: String?,
     val createdAt: String,
     val status: String = "SENT"
 )

@@ -61,6 +61,15 @@ import androidx.navigation.NavController
 import com.example.chat_app_android.data.models.MessageModel
 import com.example.chat_app_android.ui.viewmodels.ChatViewModel
 import kotlin.math.absoluteValue
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
+import android.Manifest
+import android.content.Context
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.core.content.FileProvider
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +89,35 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val currentUserId = viewModel.getCurrentUserId()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.uploadImage(chatId, uri)
+        }
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && cameraImageUri != null) {
+            viewModel.uploadImage(chatId, cameraImageUri!!)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val uri = createImageUri(context)
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        }
+    }
 
     LaunchedEffect(sessionExpired) {
         if(sessionExpired){
@@ -167,11 +205,45 @@ fun ChatScreen(
                     .imePadding(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                ) {
+                    Text(
+                        text = "+",
+                        fontSize = 24.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                ) {
+                    Icon(
+                        Icons.Default.CameraAlt,
+                        contentDescription = "Camera",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 TextField(
                     value = messageText,
-                    onValueChange = {messageText = it
-                                    if(it.isNotEmpty()) viewModel.onUserTyping(chatId)},
-                    placeholder = {Text("Message...")},
+                    onValueChange = {
+                        messageText = it
+                        if (it.isNotEmpty()) viewModel.onUserTyping(chatId)
+                    },
+                    placeholder = { Text("Message...") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp),
                     colors = TextFieldDefaults.colors(
@@ -180,10 +252,12 @@ fun ChatScreen(
                     ),
                     maxLines = 4
                 )
+
                 Spacer(modifier = Modifier.width(8.dp))
+
                 IconButton(
                     onClick = {
-                        if(messageText.isNotBlank()){
+                        if (messageText.isNotBlank()) {
                             viewModel.sendMessage(chatId, messageText)
                             messageText = ""
                         }
@@ -280,53 +354,100 @@ fun ChatScreen(
     }
 }
 
+private fun createImageUri(context: Context): Uri {
+    val imageDir = File(context.cacheDir, "images")
+    if (!imageDir.exists()) {
+        imageDir.mkdirs()
+    }
+
+    val imageFile = File(imageDir, "camera_${System.currentTimeMillis()}.jpg")
+
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.provider",
+        imageFile
+    )
+}
+
 @Composable
-fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel: Boolean){
-    val formattedTime = remember(message.createdAt){
+fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel: Boolean) {
+    val formattedTime = remember(message.createdAt) {
         try {
             val dt = java.time.LocalDateTime.parse(message.createdAt)
             dt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-        }catch (e: Exception){""}
+        } catch (e: Exception) {
+            ""
+        }
     }
+
+    val baseUrl = "http://10.0.2.2:8080"
+    val fullImageUrl = remember(message.imageUrl) {
+        message.imageUrl?.let { baseUrl + it }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if(isOwnMessage) Alignment.End else Alignment.Start
-    ){
+        horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
+    ) {
         Box(
             modifier = Modifier
                 .widthIn(max = 280.dp)
                 .background(
-                    color = if(isOwnMessage) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant,
+                    color = if (isOwnMessage) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(
                         topStart = 18.dp,
                         topEnd = 18.dp,
-                        bottomStart = if(isOwnMessage) 18.dp else 4.dp,
-                        bottomEnd = if(isOwnMessage) 4.dp else 18.dp
+                        bottomStart = if (isOwnMessage) 18.dp else 4.dp,
+                        bottomEnd = if (isOwnMessage) 4.dp else 18.dp
                     )
                 )
                 .padding(horizontal = 14.dp, vertical = 8.dp)
-        ){
+        ) {
             Column {
-                Text(
-                    text = message.content,
-                    color = if (isOwnMessage) Color.White
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 15.sp
-                )
-                if(formattedTime.isNotEmpty()){
+                when (message.type) {
+                    "TEXT" -> {
+                        Text(
+                            text = message.content ?: "",
+                            color = if (isOwnMessage) Color.White
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    "IMAGE" -> {
+                        if (fullImageUrl != null) {
+                            AsyncImage(
+                                model = fullImageUrl,
+                                contentDescription = "Sent image",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                            )
+                        } else {
+                            Text(
+                                text = "Image unavailable",
+                                color = if (isOwnMessage) Color.White
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
+                }
+
+                if (formattedTime.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = formattedTime,
-                        color = if(isOwnMessage) Color.White.copy(alpha = 0.7f)
-                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        color = if (isOwnMessage) Color.White.copy(alpha = 0.7f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         fontSize = 11.sp,
                         modifier = Modifier.align(Alignment.End)
                     )
                 }
             }
         }
-        if(isOwnMessage && showStatusLabel && message.status == "SEEN"){
+
+        if (isOwnMessage && showStatusLabel && message.status == "SEEN") {
             Spacer(Modifier.height(2.dp))
             Text(
                 text = "Seen",
