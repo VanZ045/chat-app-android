@@ -98,7 +98,7 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
                 val client = StompClient(OkHttpWebSocketClient())
                 // for emulator use ws://10.0.2.2:8080/ws
                 // for phone use ws://192.168.1.15:8080/ws
-                stompSession = client.connect("ws://10.0.2.2:8080/ws")
+                stompSession = client.connect("ws://192.168.0.5:8080/ws")
 
                 launch{
                     stompSession!!.subscribeText("/topic/user/$userId")
@@ -199,5 +199,26 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
     override fun onCleared() {
         super.onCleared()
         viewModelScope.launch { stompSession?.disconnect() }
+    }
+
+    fun deleteChat(chatId: Long){
+        val token = sessionManager.fetchAuthToken()
+        if(token == null){
+            _sessionExpired.value = true
+            return
+        }
+        viewModelScope.launch {
+            try{
+                val response = RetrofitClient.apiService.deleteChat("Bearer $token", chatId)
+                if(response.code() == 200){
+                    _chats.value = _chats.value.filter { it.chatId != chatId }
+                }else if(response.code() == 401){
+                    sessionManager.clearSession()
+                    _sessionExpired.value = true
+                }
+            }catch (e: Exception){
+                _error.value = "Failed to delete chat"
+            }
+        }
     }
 }

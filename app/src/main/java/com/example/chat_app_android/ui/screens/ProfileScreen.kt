@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.chat_app_android.data.local.SessionManager
+import com.example.chat_app_android.data.network.RetrofitClient
+import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,12 +58,15 @@ fun ProfileScreen(navController: NavController) {
     val avatarColor = avatarColors[email.hashCode().absoluteValue % avatarColors.size]
 
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember {mutableStateOf(false)}
+    var isDeleting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     if(showLogoutDialog){
         AlertDialog(
             onDismissRequest = {showLogoutDialog = false},
             title = { Text("Logout") },
-            text = {Text("Are you sure you want to logout")},
+            text = {Text("Are you sure you want to logout?")},
             confirmButton = {
                 TextButton(onClick = {
                     sessionManager.clearSession()
@@ -73,6 +79,40 @@ fun ProfileScreen(navController: NavController) {
             },
             dismissButton = {
                 TextButton(onClick = {showLogoutDialog = false}) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if(showDeleteAccountDialog){
+        AlertDialog(
+            onDismissRequest = {showDeleteAccountDialog = false},
+            title = {Text("Delete account")},
+            text = {Text("This will permanently delete your account and all your chats. This cannot be undone.")},
+            confirmButton = {
+                TextButton(onClick = {
+                    val token = sessionManager.fetchAuthToken() ?: return@TextButton
+                    isDeleting = true
+                    scope.launch {
+                        try{
+                            val response = RetrofitClient.apiService.deleteAccount("Bearer $token")
+                            if(response.code() == 200){
+                                sessionManager.clearSession()
+                                navController.navigate("login"){
+                                    popUpTo(0) {inclusive = true}
+                                }
+                            }
+                        }catch (e: Exception){
+                        }finally{
+                            isDeleting = false
+                        }
+                    }
+                    showDeleteAccountDialog = false
+                }) { Text("Delete", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = {showDeleteAccountDialog = false}) {
                     Text("Cancel")
                 }
             }
@@ -128,6 +168,17 @@ fun ProfileScreen(navController: NavController) {
                     .height(50.dp)
             ) {
                 Text("Logout", color = Color.White, fontSize = 16.sp)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = {showDeleteAccountDialog = true},
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                enabled = !isDeleting
+            ) {
+                Text("Delete Account", color = Color.White, fontSize = 16.sp)
             }
         }
     }

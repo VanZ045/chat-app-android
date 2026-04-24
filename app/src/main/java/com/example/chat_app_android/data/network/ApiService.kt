@@ -3,6 +3,7 @@ package com.example.chat_app_android.data.network
 import com.example.chat_app_android.data.models.AuthRequest
 import com.example.chat_app_android.data.models.AuthResponse
 import com.example.chat_app_android.data.models.ChatSummaryModel
+import com.example.chat_app_android.data.models.EditMessageRequest
 import com.example.chat_app_android.data.models.MessageModel
 import com.example.chat_app_android.data.models.SendMessageRequest
 import com.example.chat_app_android.data.models.UserModel
@@ -59,5 +60,29 @@ interface ApiService{
         @Part file: MultipartBody.Part
     ) : Response<MessageModel>
 
+    @PUT("api/chats/{chatId}/messages/{messageId}")
+    suspend fun editMessage(
+        @Header("Authorization") token: String,
+        @Path("chatId") chatId: Long,
+        @Path("messageId") messageId: Long,
+        @Body request: EditMessageRequest
+    ): Response<MessageModel>
 
+    @DELETE("api/chats/{chatId}/messages/{messageId}")
+    suspend fun deleteMessage(
+        @Header("Authorization") token: String,
+        @Path("chatId") chatId: Long,
+        @Path("messageId") messageId: Long,
+    ): Response<Unit>
+
+    @DELETE("api/chats/{chatId}")
+    suspend fun deleteChat(
+        @Header("Authorization") token: String,
+        @Path("chatId") chatId: Long,
+    ): Response<Unit>
+
+    @DELETE("api/users/me")
+    suspend fun deleteAccount(
+        @Header("Authorization") token: String,
+    ): Response<Unit>
 }

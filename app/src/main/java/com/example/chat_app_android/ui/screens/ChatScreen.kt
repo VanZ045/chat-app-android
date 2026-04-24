@@ -67,8 +67,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
 import android.Manifest
 import android.content.Context
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
 import androidx.core.content.FileProvider
+import com.example.chat_app_android.data.network.RetrofitClient
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,6 +92,7 @@ fun ChatScreen(
     val failedMessageContent by viewModel.failedMessageContent.collectAsStateWithLifecycle()
 
     var messageText by remember { mutableStateOf("") }
+    var messageToEdit by remember {mutableStateOf<MessageModel?>(null)}
     val listState = rememberLazyListState()
     val currentUserId = viewModel.getCurrentUserId()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -321,14 +328,20 @@ fun ChatScreen(
                             MessageBubble(
                                 message = message,
                                 isOwnMessage = message.senderId == currentUserId,
-                                showStatusLabel = message.id == lastOwnMessageId && message.senderId == currentUserId
+                                showStatusLabel = message.id == lastOwnMessageId && message.senderId == currentUserId,
+                                onEditRequest = {selectedMessage ->
+                                    messageToEdit = selectedMessage
+                                },
+                                onDeleteRequest = {selectedMessage ->
+                                    viewModel.deleteMessage(chatId, selectedMessage.id)
+                                }
                             )
                         }
                     }
                 }
             }
 
-            // Typing indicator anchored to bottom of the Box
+            // Typing indicator at the bottom
             AnimatedVisibility(
                 visible = isOtherTyping,
                 modifier = Modifier.align(Alignment.BottomStart),
@@ -350,6 +363,32 @@ fun ChatScreen(
                     )
                 }
             }
+
+            messageToEdit?.let{msg ->
+                var editText by remember(msg.id) {mutableStateOf(msg.content ?: "")}
+                AlertDialog(
+                    onDismissRequest = {messageToEdit = null},
+                    title = {Text("Edit message")},
+                    text = {
+                       TextField(
+                           value = editText,
+                           onValueChange = {editText = it},
+                           singleLine = false
+                       )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            if(editText.isNotBlank()){
+                                viewModel.editMessage(chatId, msg.id, editText)
+                            }
+                            messageToEdit = null
+                        }) { Text("Save")}
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {messageToEdit = null}) {Text("Cancel") }
+                    }
+                )
+            }
         }
     }
 }
@@ -370,7 +409,9 @@ private fun createImageUri(context: Context): Uri {
 }
 
 @Composable
-fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel: Boolean) {
+fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel: Boolean,
+                  onEditRequest: (MessageModel) -> Unit,
+                  onDeleteRequest: (MessageModel) -> Unit) {
     val formattedTime = remember(message.createdAt) {
         try {
             val dt = java.time.LocalDateTime.parse(message.createdAt)
@@ -380,10 +421,13 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
         }
     }
 
-    val baseUrl = "http://10.0.2.2:8080"
+
+    val baseUrl = RetrofitClient.BASE_URL.trimEnd('/')
     val fullImageUrl = remember(message.imageUrl) {
         message.imageUrl?.let { baseUrl + it }
     }
+
+    var showMenu by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -401,6 +445,10 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
                         bottomStart = if (isOwnMessage) 18.dp else 4.dp,
                         bottomEnd = if (isOwnMessage) 4.dp else 18.dp
                     )
+                )
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = {if(isOwnMessage) showMenu = true}
                 )
                 .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
@@ -454,6 +502,28 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
                 color = Color.Gray,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(end = 4.dp)
+            )
+        }
+
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = {showMenu = false}
+        ) {
+            if(message.type == "TEXT"){
+                DropdownMenuItem(
+                    text = {Text("edit")},
+                    onClick = {
+                        showMenu = false
+                        onEditRequest(message)
+                    }
+                )
+            }
+            DropdownMenuItem(
+                text = {Text("delete")},
+                onClick = {
+                    showMenu = false
+                    onDeleteRequest(message)
+                }
             )
         }
     }

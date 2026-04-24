@@ -3,6 +3,7 @@ package com.example.chat_app_android.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -62,6 +65,7 @@ fun ChatListScreen(
 ){
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
+    var chatToDelete by remember {mutableStateOf<ChatSummaryModel?>(null)}
 
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val users by viewModel.users.collectAsStateWithLifecycle()
@@ -151,6 +155,24 @@ fun ChatListScreen(
         }
     ){
         paddingValues ->
+
+        chatToDelete?.let{chat ->
+            AlertDialog(
+                onDismissRequest = {chatToDelete = null},
+                title = {Text("Delete chat")},
+                text = {Text("Delete you conversation with ${chat.otherUsername}")},
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteChat(chat.chatId)
+                        chatToDelete = null
+                    }) { Text("Delete", color = Color.Red)}
+                },
+                dismissButton = {
+                    TextButton(onClick = {chatToDelete = null}) { Text("Cancel")}
+                }
+            )
+        }
+
         when{
             isLoading -> {
                 Box(
@@ -224,7 +246,8 @@ fun ChatListScreen(
                                     isTyping = typingChats.contains(chat.chatId),
                                     onClick = {
                                         navController.navigate("chat/${chat.chatId}/${chat.otherUsername}")
-                                    }
+                                    },
+                                    onLongClick = {chatToDelete = chat}
                                 )
                             }
                         }
@@ -236,7 +259,8 @@ fun ChatListScreen(
 }
 
 @Composable
-fun ChatItem(chat: ChatSummaryModel, formattedTime: String, currentUserId: Long, isTyping: Boolean, onClick: () -> Unit){
+fun ChatItem(chat: ChatSummaryModel, formattedTime: String, currentUserId: Long,
+             isTyping: Boolean, onClick: () -> Unit, onLongClick: () -> Unit){
     val avatarColors = listOf(
         Color(0xFF6200EE), Color(0xFF03DAC5), Color(0xFFFF5722),
         Color(0xFF2196F3), Color(0xFF4CAF50), Color(0xFFFF9800),
@@ -247,14 +271,23 @@ fun ChatItem(chat: ChatSummaryModel, formattedTime: String, currentUserId: Long,
     val lastMessageText = when{
         isTyping -> "typing..."
         chat.lastMessage.isEmpty() -> "Tap to start chatting"
-        chat.lastMessageSenderId == currentUserId -> "You: ${chat.lastMessage}"
-        else -> chat.lastMessage
+        chat.lastMessageSenderId == currentUserId -> when(chat.lastMessage){
+            "[Image]" -> "You sent a photo"
+            else -> "You: ${chat.lastMessage}"
+        }
+        else -> when(chat.lastMessage){
+            "[Image]" -> "sent a photo"
+            else -> chat.lastMessage
+        }
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

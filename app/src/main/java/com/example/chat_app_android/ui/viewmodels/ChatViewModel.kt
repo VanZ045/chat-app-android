@@ -21,6 +21,8 @@ import org.hildan.krossbow.stomp.sendText
 import org.hildan.krossbow.stomp.subscribeText
 import org.hildan.krossbow.websocket.okhttp.OkHttpWebSocketClient
 import android.net.Uri
+import androidx.compose.ui.geometry.Rect
+import com.example.chat_app_android.data.models.EditMessageRequest
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -98,56 +100,93 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun connectWebSocket(chatId: Long){
         viewModelScope.launch {
-            try{
+            try {
                 val client = StompClient(OkHttpWebSocketClient())
-                // for emulator use ws://10.0.2.2:8080/ws
-                stompSession = client.connect("ws://10.0.2.2:8080/ws")
+                stompSession = client.connect("ws://192.168.0.5:8080/ws")
 
-                launch{
-                    stompSession!!.subscribeText("/topic/chats/$chatId")
-                        .collect{frame ->
-                            try {
-                                val incoming = gson.fromJson(frame, MessageModel::class.java)
-                                if(_messages.value.none {it.id == incoming.id}){
-                                    _messages.value += incoming
-                                    if(incoming.senderId != getCurrentUserId()){
-                                        markAsSeen(chatId)
-                                    }
-                                }
-                            }catch(e: Exception){}
-                        }
-                }
                 launch {
-                    stompSession!!.subscribeText("/topic/chats/$chatId/typing")
-                        .collect{frame ->
-                            try{
-                                val event = gson.fromJson(frame, TypingRequest::class.java)
-                                if(event.senderId != getCurrentUserId()){
-                                    _isOtherTyping.value = event.isTyping
-                                }
-                            }catch (e: Exception){}
-                        }
-                }
-                launch {
-                    stompSession!!.subscribeText("/topic/chats/$chatId/seen")
-                        .collect { frame ->
-                            try{
-                                val event = gson.fromJson(frame, SeenEvent::class.java)
-                                val currentUserId = getCurrentUserId()
-                                if(event.seenByUserId != currentUserId){
-                                    _messages.value = _messages.value.map{msg ->
-                                        if(msg.senderId == currentUserId && msg.status != "SEEN"){
-                                            msg.copy(status = "SEEN")
-                                        }else msg
+                    try {
+                        stompSession!!.subscribeText("/topic/chats/$chatId")
+                            .collect { frame ->
+                                try {
+                                    val incoming = gson.fromJson(frame, MessageModel::class.java)
+                                    if (_messages.value.none { it.id == incoming.id }) {
+                                        _messages.value += incoming
+                                        if (incoming.senderId != getCurrentUserId()) markAsSeen(chatId)
                                     }
-                                }
-                            }catch (e: Exception){}
-                        }
+                                } catch (e: Exception) {}
+                            }
+                    } catch (e: Exception) { reconnectWebSocket(chatId) }
                 }
 
-            }catch(e: Exception){
+                launch {
+                    try {
+                        stompSession!!.subscribeText("/topic/chats/$chatId/typing")
+                            .collect { frame ->
+                                try {
+                                    val event = gson.fromJson(frame, TypingRequest::class.java)
+                                    if (event.senderId != getCurrentUserId()) _isOtherTyping.value = event.isTyping
+                                } catch (e: Exception) {}
+                            }
+                    } catch (e: Exception) {}
+                }
+
+                launch {
+                    try {
+                        stompSession!!.subscribeText("/topic/chats/$chatId/seen")
+                            .collect { frame ->
+                                try {
+                                    val event = gson.fromJson(frame, SeenEvent::class.java)
+                                    val currentUserId = getCurrentUserId()
+                                    if (event.seenByUserId != currentUserId) {
+                                        _messages.value = _messages.value.map { msg ->
+                                            if (msg.senderId == currentUserId && msg.status != "SEEN")
+                                                msg.copy(status = "SEEN") else msg
+                                        }
+                                    }
+                                } catch (e: Exception) {}
+                            }
+                    } catch (e: Exception) {}
+                }
+
+                launch {
+                    try {
+                        stompSession!!.subscribeText("/topic/chats/$chatId/edit")
+                            .collect { frame ->
+                                try {
+                                    val edited = gson.fromJson(frame, MessageModel::class.java)
+                                    _messages.value = _messages.value.map { if (it.id == edited.id) edited else it }
+                                } catch (e: Exception) {}
+                            }
+                    } catch (e: Exception) {}
+                }
+
+                launch {
+                    try {
+                        stompSession!!.subscribeText("/topic/chats/$chatId/delete")
+                            .collect { frame ->
+                                try {
+                                    val deletedId = gson.fromJson(frame, Long::class.java)
+                                    _messages.value = _messages.value.filter { it.id != deletedId }
+                                } catch (e: Exception) {}
+                            }
+                    } catch (e: Exception) {}
+                }
+
+            } catch (e: Exception) {
                 _error.value = "Real-time connection failed"
             }
+        }
+    }
+
+    private fun reconnectWebSocket(chatId: Long) {
+        viewModelScope.launch {
+            try {
+                stompSession?.disconnect()
+            } catch (e: Exception) {}
+            stompSession = null
+            kotlinx.coroutines.delay(2000)
+            connectWebSocket(chatId)
         }
     }
 
@@ -284,5 +323,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         return tempFile
+    }
+
+    fun editMessage(chatId: Long, messageId: Long, newContent: String){
+        val token = sessionManager.fetchAuthToken()
+        if(token == null){
+            _sessionExpired.value = true
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.apiService.editMessage(
+                    "Bearer $token", chatId, messageId, EditMessageRequest(newContent)
+                )
+                if(response.code() == 401){
+                    sessionManager.clearSession()
+                    _sessionExpired.value = true
+                }
+            }catch (e: Exception){
+                _error.value = "Failed to edit message"
+            }
+        }
+    }
+
+    fun deleteMessage(chatId: Long, messageId: Long){
+        val token = sessionManager.fetchAuthToken()
+        if(token == null){
+            _sessionExpired.value = true
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.apiService.deleteMessage(
+                    "Bearer $token", chatId, messageId
+                )
+                if(response.code() == 200){
+                    _messages.value = _messages.value.filter { it.id != messageId }
+                }else if(response.code() == 401){
+                        sessionManager.clearSession()
+                        _sessionExpired.value = true
+                }
+            }catch (e: Exception){
+                _error.value = "Failed to delete message"
+            }
+        }
     }
 }
