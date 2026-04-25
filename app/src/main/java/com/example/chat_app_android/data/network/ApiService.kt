@@ -2,9 +2,12 @@ package com.example.chat_app_android.data.network
 
 import com.example.chat_app_android.data.models.AuthRequest
 import com.example.chat_app_android.data.models.AuthResponse
+import com.example.chat_app_android.data.models.ChangePasswordRequest
 import com.example.chat_app_android.data.models.ChatSummaryModel
 import com.example.chat_app_android.data.models.EditMessageRequest
+import com.example.chat_app_android.data.models.ForgotPasswordRequest
 import com.example.chat_app_android.data.models.MessageModel
+import com.example.chat_app_android.data.models.ResetPasswordRequest
 import com.example.chat_app_android.data.models.SendMessageRequest
 import com.example.chat_app_android.data.models.UserModel
 import okhttp3.MultipartBody
@@ -85,4 +88,16 @@ interface ApiService{
     suspend fun deleteAccount(
         @Header("Authorization") token: String,
     ): Response<Unit>
+
+    @POST("api/auth/forgot-password")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest): Response<Void>
+
+    @POST("api/auth/reset-password")
+    suspend fun resetPassword(@Body request: ResetPasswordRequest): Response<Void>
+
+    @PUT("api/auth/change-password")
+    suspend fun changePassword(
+        @Header("Authorization") token:String,
+        @Body request: ChangePasswordRequest
+    ): Response<Void>
 }

@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -137,6 +138,10 @@ fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewM
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+
+        TextButton(onClick = {navController.navigate("forgot-password")}){
+            Text("Forgot password?", color = MaterialTheme.colorScheme.primary)
+        }
 
         Text(text = "Don't have an account yet?")
 

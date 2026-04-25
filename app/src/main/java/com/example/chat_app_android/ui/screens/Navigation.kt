@@ -53,6 +53,16 @@ fun App() {
         NavHost(navController = navController, startDestination = startDestination) {
             composable("login") { LoginScreen(navController) }
             composable("register") { RegisterScreen(navController) }
+            composable("forgot-password"){ForgotPasswordScreen(navController)}
+            composable(
+                route = "reset-password/{email}",
+                arguments = listOf(
+                    navArgument("email") {type = NavType.StringType}
+                )
+            ){backStackEntry ->
+                val email = backStackEntry.arguments?.getString("email") ?: ""
+                ResetPasswordScreen(navController = navController, email = email)
+            }
             composable("chat-list") { ChatListScreen(navController) }
             composable("profile") { ProfileScreen(navController) }
             composable(
