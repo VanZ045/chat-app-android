@@ -97,7 +97,9 @@ fun ForgotPasswordScreen(navController: NavController) {
                             if(response.isSuccessful){
                                 Toast.makeText(context, "Reset code sent to your email", Toast.LENGTH_LONG).show()
                                 navController.navigate("reset-password/${email}")
-                            }else{
+                            }else if(response.code() == 429){
+                                Toast.makeText(context, "Please wait a few minutes before requesting a new code", Toast.LENGTH_LONG).show()
+                            } else{
                                 Toast.makeText(context, "Something went wrong", Toast.LENGTH_SHORT).show()
                             }
                         }catch (e: Exception){
