@@ -102,7 +102,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val client = StompClient(OkHttpWebSocketClient())
-                stompSession = client.connect("ws://192.168.0.5:8080/ws")
+                stompSession = client.connect("ws://192.168.1.15:8080/ws")
 
                 launch {
                     try {
@@ -269,7 +269,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
+                android.util.Log.d("UPLOAD_DEBUG", "uploadImage called, uri=$imageUri")
+
                 val file = uriToFile(imageUri)
+                android.util.Log.d(
+                    "UPLOAD_DEBUG",
+                    "file created = ${file.absolutePath}, size=${file.length()}"
+                )
 
                 val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
                 val multipartBody = MultipartBody.Part.createFormData(
@@ -278,11 +284,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     requestFile
                 )
 
+                android.util.Log.d("UPLOAD_DEBUG", "before api.uploadImage")
+
                 val response = RetrofitClient.apiService.uploadImage(
                     token = "Bearer $token",
                     chatId = chatId,
                     file = multipartBody
                 )
+
+                android.util.Log.d("UPLOAD_DEBUG", "response code = ${response.code()}")
+                android.util.Log.d("UPLOAD_DEBUG", "response body = ${response.body()}")
 
                 when (response.code()) {
                     200 -> {
@@ -291,6 +302,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             if (_messages.value.none { it.id == uploadedMessage.id }) {
                                 _messages.value = _messages.value + uploadedMessage
                             }
+                        } else {
+                            _error.value = "Upload succeeded but body was empty"
                         }
                     }
 
@@ -300,12 +313,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     else -> {
-                        _error.value = "Failed to upload image"
+                        _error.value = "Failed to upload image (${response.code()})"
                     }
                 }
 
             } catch (e: Exception) {
-                _error.value = "Image upload failed"
+                android.util.Log.e("UPLOAD_DEBUG", "uploadImage failed", e)
+                _error.value = "Image upload failed: ${e.message}"
             }
         }
     }
@@ -314,13 +328,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val context = getApplication<Application>().applicationContext
         val contentResolver = context.contentResolver
 
+        android.util.Log.d("UPLOAD_DEBUG", "uriToFile start, uri=$uri")
+
         val tempFile = File.createTempFile("upload_", ".jpg", context.cacheDir)
 
-        contentResolver.openInputStream(uri)?.use { inputStream ->
-            FileOutputStream(tempFile).use { outputStream ->
-                inputStream.copyTo(outputStream)
+        val inputStream = contentResolver.openInputStream(uri)
+            ?: throw IllegalArgumentException("Cannot open input stream for uri: $uri")
+
+        inputStream.use { input ->
+            FileOutputStream(tempFile).use { output ->
+                input.copyTo(output)
             }
         }
+
+        android.util.Log.d(
+            "UPLOAD_DEBUG",
+            "uriToFile done, tempFile=${tempFile.absolutePath}, size=${tempFile.length()}"
+        )
 
         return tempFile
     }
@@ -365,6 +389,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }catch (e: Exception){
                 _error.value = "Failed to delete message"
+            }
+        }
+    }
+
+    fun enterActiveChat(chatId: Long) {
+        val token = sessionManager.fetchAuthToken() ?: return
+
+        viewModelScope.launch {
+            try {
+                RetrofitClient.apiService.enterChat("Bearer $token", chatId)
+            } catch (e: Exception) {
+            }
+        }
+    }
+
+    fun leaveActiveChat() {
+        val token = sessionManager.fetchAuthToken() ?: return
+
+        viewModelScope.launch {
+            try {
+                RetrofitClient.apiService.leaveActiveChat("Bearer $token")
+            } catch (e: Exception) {
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.example.chat_app_android.ui.screens
 
+import android.app.Activity
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +21,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun App() {
     val context = LocalContext.current
+    val activity = context as? Activity
     val sessionManager = SessionManager(context)
     val sessionExpired by AuthEventBus.sessionExpired.collectAsStateWithLifecycle()
 
@@ -27,19 +30,17 @@ fun App() {
     LaunchedEffect(Unit) {
         val expiry = sessionManager.fetchTokenExpiry()
         val now = System.currentTimeMillis()
-        val delay = expiry - now
-        if (delay <= 0) {
+        val delayMs = expiry - now
+        if (delayMs <= 0) {
             sessionManager.clearSession()
             AuthEventBus.emitSessionExpired()
         } else {
-            delay(delay)
+            delay(delayMs)
             sessionManager.clearSession()
             AuthEventBus.emitSessionExpired()
         }
     }
 
-    // key() forces complete remount when showLogin changes
-    // so navController and back stack are always fresh
     key(showLogin) {
         val navController = rememberNavController()
         val startDestination = if (showLogin) "login" else "chat-list"
@@ -50,16 +51,35 @@ fun App() {
             }
         }
 
+        LaunchedEffect(navController, showLogin) {
+            if (showLogin) return@LaunchedEffect
+
+            val intent = activity?.intent ?: return@LaunchedEffect
+            val openChat = intent.getBooleanExtra("open_chat", false)
+            val chatId = intent.getLongExtra("chat_id", -1L)
+            val otherUsername = intent.getStringExtra("other_username").orEmpty()
+
+            if (openChat && chatId != -1L) {
+                navController.navigate("chat/$chatId/${otherUsername.encodeNavArg()}") {
+                    launchSingleTop = true
+                }
+
+                intent.removeExtra("open_chat")
+                intent.removeExtra("chat_id")
+                intent.removeExtra("other_username")
+            }
+        }
+
         NavHost(navController = navController, startDestination = startDestination) {
             composable("login") { LoginScreen(navController) }
             composable("register") { RegisterScreen(navController) }
-            composable("forgot-password"){ForgotPasswordScreen(navController)}
+            composable("forgot-password") { ForgotPasswordScreen(navController) }
             composable(
                 route = "reset-password/{email}",
                 arguments = listOf(
-                    navArgument("email") {type = NavType.StringType}
+                    navArgument("email") { type = NavType.StringType }
                 )
-            ){backStackEntry ->
+            ) { backStackEntry ->
                 val email = backStackEntry.arguments?.getString("email") ?: ""
                 ResetPasswordScreen(navController = navController, email = email)
             }
@@ -79,3 +99,5 @@ fun App() {
         }
     }
 }
+
+private fun String.encodeNavArg(): String = Uri.encode(this)

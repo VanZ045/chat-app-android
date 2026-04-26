@@ -4,6 +4,7 @@ import com.example.chat_app_android.data.models.AuthRequest
 import com.example.chat_app_android.data.models.AuthResponse
 import com.example.chat_app_android.data.models.ChangePasswordRequest
 import com.example.chat_app_android.data.models.ChatSummaryModel
+import com.example.chat_app_android.data.models.DeviceTokenRequest
 import com.example.chat_app_android.data.models.EditMessageRequest
 import com.example.chat_app_android.data.models.ForgotPasswordRequest
 import com.example.chat_app_android.data.models.MessageModel
@@ -100,4 +101,28 @@ interface ApiService{
         @Header("Authorization") token:String,
         @Body request: ChangePasswordRequest
     ): Response<Void>
+
+    @POST("api/users/device-token")
+    suspend fun saveDeviceToken(
+        @Header("Authorization") token: String,
+        @Body request: DeviceTokenRequest
+    ): Response<Unit>
+
+    @POST("api/chats/{chatId}/active")
+    suspend fun enterChat(
+        @Header("Authorization") token: String,
+        @Path("chatId") chatId: Long
+    ): Response<Unit>
+
+    @DELETE("api/chats/active")
+    suspend fun leaveActiveChat(
+        @Header("Authorization") token: String
+    ): Response<Unit>
+
+    @Multipart
+    @POST("api/users/profile-image")
+    suspend fun uploadProfileImage(
+        @Header("Authorization") token: String,
+        @Part file: MultipartBody.Part
+    ): Response<Unit>
 }

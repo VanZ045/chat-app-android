@@ -1,6 +1,10 @@
 package com.example.chat_app_android.ui.screens
 
+import android.content.Context
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -44,20 +50,52 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.chat_app_android.data.local.SessionManager
 import com.example.chat_app_android.data.models.ChangePasswordRequest
+import com.example.chat_app_android.data.models.UserModel
 import com.example.chat_app_android.data.network.RetrofitClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
 import kotlin.math.absoluteValue
+
+private fun uriToFile(context: Context, uri: Uri): File {
+    val tempFile = File.createTempFile("profile_", ".jpg", context.cacheDir)
+
+    val inputStream = context.contentResolver.openInputStream(uri)
+        ?: throw IllegalArgumentException("Cannot open input stream for uri: $uri")
+
+    inputStream.use { input ->
+        FileOutputStream(tempFile).use { output ->
+            input.copyTo(output)
+        }
+    }
+
+    return tempFile
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(navController: NavController) {
     val context = LocalContext.current
     val sessionManager = SessionManager(context)
+    val scope = rememberCoroutineScope()
 
-    val email = sessionManager.fetchEmail() ?: ""
-    val firstLetter = if(email.isNotEmpty()) email.first().uppercaseChar().toString() else "?"
+    var currentUser by remember { mutableStateOf<UserModel?>(null) }
+    var isUploadingProfileImage by remember { mutableStateOf(false) }
+
+    val email = currentUser?.email ?: sessionManager.fetchEmail().orEmpty()
+    val username = currentUser?.username ?: ""
+    val firstLetter = when {
+        username.isNotEmpty() -> username.first().uppercaseChar().toString()
+        email.isNotEmpty() -> email.first().uppercaseChar().toString()
+        else -> "?"
+    }
 
     val avatarColors = listOf(
         Color(0xFF6200EE), Color(0xFF03DAC5), Color(0xFFFF5722),
@@ -66,84 +104,136 @@ fun ProfileScreen(navController: NavController) {
     val avatarColor = avatarColors[email.hashCode().absoluteValue % avatarColors.size]
 
     var showLogoutDialog by remember { mutableStateOf(false) }
-    var showDeleteAccountDialog by remember {mutableStateOf(false)}
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     var showChangePasswordDialog by remember { mutableStateOf(false) }
-    var currentPassword by remember {mutableStateOf("")}
-    var newPassword by remember {mutableStateOf("")}
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
     var confirmNewPassword by remember { mutableStateOf("") }
     var changePasswordError by remember { mutableStateOf<String?>(null) }
     var currentPasswordVisible by remember { mutableStateOf(false) }
     var newPasswordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
-    if(showLogoutDialog){
+    LaunchedEffect(Unit) {
+        val token = sessionManager.fetchAuthToken() ?: return@LaunchedEffect
+        try {
+            val response = RetrofitClient.apiService.getMe("Bearer $token")
+            if (response.isSuccessful) {
+                currentUser = response.body()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        val token = sessionManager.fetchAuthToken() ?: return@rememberLauncherForActivityResult
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                isUploadingProfileImage = true
+
+                val file = uriToFile(context, uri)
+                val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
+                val multipartBody = MultipartBody.Part.createFormData(
+                    "file",
+                    file.name,
+                    requestFile
+                )
+
+                val uploadResponse = RetrofitClient.apiService.uploadProfileImage(
+                    token = "Bearer $token",
+                    file = multipartBody
+                )
+
+                if (uploadResponse.isSuccessful) {
+                    val meResponse = RetrofitClient.apiService.getMe("Bearer $token")
+                    if (meResponse.isSuccessful) {
+                        currentUser = meResponse.body()
+                    }
+                }
+            } catch (_: Exception) {
+            } finally {
+                isUploadingProfileImage = false
+            }
+        }
+    }
+
+    if (showLogoutDialog) {
         AlertDialog(
-            onDismissRequest = {showLogoutDialog = false},
+            onDismissRequest = { showLogoutDialog = false },
             title = { Text("Logout") },
-            text = {Text("Are you sure you want to logout?")},
+            text = { Text("Are you sure you want to logout?") },
             confirmButton = {
                 TextButton(onClick = {
                     sessionManager.clearSession()
-                    navController.navigate("login"){
-                        popUpTo(0) {inclusive = true}
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
                     }
                 }) {
                     Text("Logout", color = Color.Red)
                 }
             },
             dismissButton = {
-                TextButton(onClick = {showLogoutDialog = false}) {
+                TextButton(onClick = { showLogoutDialog = false }) {
                     Text("Cancel")
                 }
             }
         )
     }
 
-    if(showDeleteAccountDialog){
+    if (showDeleteAccountDialog) {
         AlertDialog(
-            onDismissRequest = {showDeleteAccountDialog = false},
-            title = {Text("Delete account")},
-            text = {Text("This will permanently delete your account and all your chats. This cannot be undone.")},
+            onDismissRequest = { showDeleteAccountDialog = false },
+            title = { Text("Delete account") },
+            text = { Text("This will permanently delete your account and all your chats. This cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
                     val token = sessionManager.fetchAuthToken() ?: return@TextButton
                     isDeleting = true
                     scope.launch {
-                        try{
+                        try {
                             val response = RetrofitClient.apiService.deleteAccount("Bearer $token")
-                            if(response.code() == 200){
+                            if (response.code() == 200) {
                                 sessionManager.clearSession()
-                                navController.navigate("login"){
-                                    popUpTo(0) {inclusive = true}
+                                navController.navigate("login") {
+                                    popUpTo(0) { inclusive = true }
                                 }
                             }
-                        }catch (e: Exception){
-                        }finally{
+                        } catch (_: Exception) {
+                        } finally {
                             isDeleting = false
                         }
                     }
                     showDeleteAccountDialog = false
-                }) { Text("Delete", color = Color.Red) }
+                }) {
+                    Text("Delete", color = Color.Red)
+                }
             },
             dismissButton = {
-                TextButton(onClick = {showDeleteAccountDialog = false}) {
+                TextButton(onClick = { showDeleteAccountDialog = false }) {
                     Text("Cancel")
                 }
             }
         )
     }
 
-    if(showChangePasswordDialog){
+    if (showChangePasswordDialog) {
         AlertDialog(
             onDismissRequest = {
                 showChangePasswordDialog = false
-                currentPassword = ""; newPassword = ""; confirmNewPassword = ""; changePasswordError = null
+                currentPassword = ""
+                newPassword = ""
+                confirmNewPassword = ""
+                changePasswordError = null
             },
-            title = {Text("Change password")},
+            title = { Text("Change password") },
             text = {
-                Column{
+                Column {
                     changePasswordError?.let {
                         Text(
                             it,
@@ -152,6 +242,7 @@ fun ProfileScreen(navController: NavController) {
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
+
                     OutlinedTextField(
                         value = currentPassword,
                         onValueChange = { currentPassword = it },
@@ -159,13 +250,18 @@ fun ProfileScreen(navController: NavController) {
                         visualTransformation = if (currentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { currentPasswordVisible = !currentPasswordVisible }) {
-                                Icon(if (currentPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null)
+                                Icon(
+                                    if (currentPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null
+                                )
                             }
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
                     Spacer(modifier = Modifier.height(8.dp))
+
                     OutlinedTextField(
                         value = newPassword,
                         onValueChange = { newPassword = it },
@@ -173,13 +269,18 @@ fun ProfileScreen(navController: NavController) {
                         visualTransformation = if (newPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { newPasswordVisible = !newPasswordVisible }) {
-                                Icon(if (newPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null)
+                                Icon(
+                                    if (newPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null
+                                )
                             }
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
                     Spacer(modifier = Modifier.height(8.dp))
+
                     OutlinedTextField(
                         value = confirmNewPassword,
                         onValueChange = { confirmNewPassword = it },
@@ -187,7 +288,10 @@ fun ProfileScreen(navController: NavController) {
                         visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                                Icon(if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null)
+                                Icon(
+                                    if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null
+                                )
                             }
                         },
                         singleLine = true,
@@ -199,15 +303,20 @@ fun ProfileScreen(navController: NavController) {
             confirmButton = {
                 TextButton(onClick = {
                     if (currentPassword.isBlank() || newPassword.isBlank()) {
-                        changePasswordError = "Please fill in all fields"; return@TextButton
+                        changePasswordError = "Please fill in all fields"
+                        return@TextButton
                     }
                     if (newPassword != confirmNewPassword) {
-                        changePasswordError = "Passwords do not match"; return@TextButton
+                        changePasswordError = "Passwords do not match"
+                        return@TextButton
                     }
                     if (newPassword.length < 6) {
-                        changePasswordError = "Password must be at least 6 characters"; return@TextButton
+                        changePasswordError = "Password must be at least 6 characters"
+                        return@TextButton
                     }
+
                     val token = sessionManager.fetchAuthToken() ?: return@TextButton
+
                     scope.launch {
                         try {
                             val response = RetrofitClient.apiService.changePassword(
@@ -215,38 +324,52 @@ fun ProfileScreen(navController: NavController) {
                                 ChangePasswordRequest(currentPassword, newPassword)
                             )
                             if (response.isSuccessful) {
-                                Toast.makeText(context, "Password change successfully!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Password changed successfully!", Toast.LENGTH_SHORT).show()
                                 showChangePasswordDialog = false
-                                currentPassword = ""; newPassword = ""; confirmNewPassword = ""; changePasswordError = null
+                                currentPassword = ""
+                                newPassword = ""
+                                confirmNewPassword = ""
+                                changePasswordError = null
                             } else {
                                 changePasswordError = "Current password is incorrect"
                             }
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             changePasswordError = "Network error"
                         }
                     }
-                }) { Text("Save") }
+                }) {
+                    Text("Save")
+                }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showChangePasswordDialog = false
-                    currentPassword = ""; newPassword = ""; confirmNewPassword = ""; changePasswordError = null
-                }) { Text("Cancel") }
+                    currentPassword = ""
+                    newPassword = ""
+                    confirmNewPassword = ""
+                    changePasswordError = null
+                }) {
+                    Text("Cancel")
+                }
             }
         )
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = {Text("Profile")},
-            navigationIcon = {
-                IconButton(onClick = {navController.popBackStack()}) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+    val baseUrl = "http://10.0.2.2:8080"
+    val fullProfileImageUrl = currentUser?.profileImageUrl?.let { baseUrl + it }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Profile") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
                 }
-            }
-        )
-    }) {
-        paddingValues ->
+            )
+        }
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -255,37 +378,66 @@ fun ProfileScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(32.dp))
-            Box(
-                modifier = Modifier
-                    .size(100.dp)
-                    .background(avatarColor, CircleShape),
-                contentAlignment = Alignment.Center
-            ){
-                Text(
-                    text = firstLetter,
-                    color = Color.White,
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.Bold
+
+            if (fullProfileImageUrl != null) {
+                AsyncImage(
+                    model = fullProfileImageUrl,
+                    contentDescription = "Profile image",
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .background(avatarColor, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = firstLetter,
+                        color = Color.White,
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = { imagePickerLauncher.launch("image/*") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isUploadingProfileImage
+            ) {
+                Text(if (isUploadingProfileImage) "Uploading..." else "Change profile picture")
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
+
             Text(
                 text = email,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold
             )
+
             Spacer(modifier = Modifier.height(48.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(24.dp))
+
             Button(
-                onClick = {showChangePasswordDialog = true},
-                modifier = Modifier.fillMaxWidth().height(50.dp)
-            ){
+                onClick = { showChangePasswordDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
                 Text("Change password", fontSize = 16.sp)
             }
+
             Spacer(modifier = Modifier.height(12.dp))
+
             Button(
-                onClick = {showLogoutDialog = true},
+                onClick = { showLogoutDialog = true },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -293,9 +445,11 @@ fun ProfileScreen(navController: NavController) {
             ) {
                 Text("Logout", color = Color.White, fontSize = 16.sp)
             }
+
             Spacer(modifier = Modifier.height(12.dp))
+
             Button(
-                onClick = {showDeleteAccountDialog = true},
+                onClick = { showDeleteAccountDialog = true },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020)),
                 modifier = Modifier
                     .fillMaxWidth()

@@ -76,6 +76,7 @@ import androidx.compose.material3.TextButton
 import androidx.core.content.FileProvider
 import com.example.chat_app_android.data.network.RetrofitClient
 import java.io.File
+import androidx.compose.runtime.DisposableEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +97,14 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val currentUserId = viewModel.getCurrentUserId()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    DisposableEffect(chatId) {
+        viewModel.enterActiveChat(chatId)
+
+        onDispose {
+            viewModel.leaveActiveChat()
+        }
+    } 
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()

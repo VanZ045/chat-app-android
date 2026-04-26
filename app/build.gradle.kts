@@ -2,6 +2,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -65,4 +66,7 @@ dependencies {
     implementation("org.hildan.krossbow:krossbow-stomp-core:7.1.0")
     implementation("org.hildan.krossbow:krossbow-websocket-okhttp:7.1.0")
     implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-messaging")
 }

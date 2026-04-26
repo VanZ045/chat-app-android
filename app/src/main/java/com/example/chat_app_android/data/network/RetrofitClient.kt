@@ -9,7 +9,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 object RetrofitClient {
     // for emulator use http://10.0.2.2:8080/
     // for phone use  http://192.168.1.15:8080/
-    const val BASE_URL = "http://192.168.0.5:8080/"
+    const val BASE_URL = "http://192.168.1.15:8080/"
     lateinit var apiService: ApiService
 
     fun init(sessionManager: SessionManager){
