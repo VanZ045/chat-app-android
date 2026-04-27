@@ -77,10 +77,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _sessionExpired.value = true
                         return@launch
                     }
-                    else -> _error.value = "Failed to load messages"
+                    else -> _error.value = "Неуспешно зареждане на съобщения"
                 }
             }catch(e: Exception){
-                _error.value = "Network error"
+                _error.value = "Грешка с мрежата"
             } finally {
                 _isLoading.value = false
             }
@@ -174,7 +174,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
             } catch (e: Exception) {
-                _error.value = "Real-time connection failed"
+                _error.value = "Връзката прекъсна"
             }
         }
     }
@@ -269,13 +269,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                android.util.Log.d("UPLOAD_DEBUG", "uploadImage called, uri=$imageUri")
-
                 val file = uriToFile(imageUri)
-                android.util.Log.d(
-                    "UPLOAD_DEBUG",
-                    "file created = ${file.absolutePath}, size=${file.length()}"
-                )
 
                 val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
                 val multipartBody = MultipartBody.Part.createFormData(
@@ -284,16 +278,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     requestFile
                 )
 
-                android.util.Log.d("UPLOAD_DEBUG", "before api.uploadImage")
-
                 val response = RetrofitClient.apiService.uploadImage(
                     token = "Bearer $token",
                     chatId = chatId,
                     file = multipartBody
                 )
-
-                android.util.Log.d("UPLOAD_DEBUG", "response code = ${response.code()}")
-                android.util.Log.d("UPLOAD_DEBUG", "response body = ${response.body()}")
 
                 when (response.code()) {
                     200 -> {
@@ -303,7 +292,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 _messages.value = _messages.value + uploadedMessage
                             }
                         } else {
-                            _error.value = "Upload succeeded but body was empty"
+                            _error.value = "Качването беше успешно, но няма върнати данни."
                         }
                     }
 
@@ -313,13 +302,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     else -> {
-                        _error.value = "Failed to upload image (${response.code()})"
+                        _error.value = "Неуспешно качване на снимка (${response.code()})"
                     }
                 }
 
             } catch (e: Exception) {
-                android.util.Log.e("UPLOAD_DEBUG", "uploadImage failed", e)
-                _error.value = "Image upload failed: ${e.message}"
+                _error.value = "Неуспешно качване на снимка: ${e.message}"
             }
         }
     }
@@ -328,23 +316,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val context = getApplication<Application>().applicationContext
         val contentResolver = context.contentResolver
 
-        android.util.Log.d("UPLOAD_DEBUG", "uriToFile start, uri=$uri")
-
         val tempFile = File.createTempFile("upload_", ".jpg", context.cacheDir)
 
         val inputStream = contentResolver.openInputStream(uri)
-            ?: throw IllegalArgumentException("Cannot open input stream for uri: $uri")
+            ?: throw IllegalArgumentException("Неуспешно отваряне на входящ поток за избрания файл.: $uri")
 
         inputStream.use { input ->
             FileOutputStream(tempFile).use { output ->
                 input.copyTo(output)
             }
         }
-
-        android.util.Log.d(
-            "UPLOAD_DEBUG",
-            "uriToFile done, tempFile=${tempFile.absolutePath}, size=${tempFile.length()}"
-        )
 
         return tempFile
     }
@@ -365,7 +346,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     _sessionExpired.value = true
                 }
             }catch (e: Exception){
-                _error.value = "Failed to edit message"
+                _error.value = "Неуспешно редактиране на съобщение"
             }
         }
     }
@@ -388,7 +369,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _sessionExpired.value = true
                 }
             }catch (e: Exception){
-                _error.value = "Failed to delete message"
+                _error.value = "Неуспешно изтриване на съобщение"
             }
         }
     }

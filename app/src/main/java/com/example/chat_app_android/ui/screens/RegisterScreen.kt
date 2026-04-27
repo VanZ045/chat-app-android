@@ -46,7 +46,7 @@ import com.example.chat_app_android.R
 import com.example.chat_app_android.ui.viewmodels.RegisterViewModel
 
 @Composable
-fun RegisterScreen(navController: NavController , viewModel: RegisterViewModel = viewModel()){
+fun RegisterScreen(navController: NavController, viewModel: RegisterViewModel = viewModel()) {
     var username by remember {
         mutableStateOf("")
     }
@@ -67,39 +67,68 @@ fun RegisterScreen(navController: NavController , viewModel: RegisterViewModel =
     var passwordError by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFEDE8E6)),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFEDE8E6)),
         verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally) {
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
 
-        Image(painter = painterResource(id = R.drawable.edit),
-            contentDescription = "Login image", modifier = Modifier.size(200.dp)
+        Image(
+            painter = painterResource(id = R.drawable.edit),
+            contentDescription = "Изображение за регистрация",
+            modifier = Modifier.size(200.dp)
         )
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        Text(text = "Welcome to the register screen!", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = "Добре дошъл в екрана за регистрация!",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold
+        )
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        OutlinedTextField(value = username, onValueChange = {username=it }, label = {
-            Text(text = "Username")}, modifier = Modifier,leadingIcon = {
-            Icon(Icons.Default.Face, contentDescription = null)
-        },shape = RoundedCornerShape(16.dp), isError = usernameError , placeholder = {Text(text = "min. 3 characters")})
-
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            label = {
+                Text(text = "Потребителско име")
+            },
+            modifier = Modifier,
+            leadingIcon = {
+                Icon(Icons.Default.Face, contentDescription = null)
+            },
+            shape = RoundedCornerShape(16.dp),
+            isError = usernameError,
+            placeholder = { Text(text = "мин. 3 символа") }
+        )
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        OutlinedTextField(value = email, onValueChange = {email=it }, label = {
-            Text(text = "Email address")}, modifier = Modifier,leadingIcon = {
-            Icon(Icons.Default.Email, contentDescription = null)
-        },shape = RoundedCornerShape(16.dp), isError = emailError , placeholder = { Text("example@mail.com") })
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = {
+                Text(text = "Имейл адрес")
+            },
+            modifier = Modifier,
+            leadingIcon = {
+                Icon(Icons.Default.Email, contentDescription = null)
+            },
+            shape = RoundedCornerShape(16.dp),
+            isError = emailError,
+            placeholder = { Text("example@mail.com") }
+        )
 
         Spacer(modifier = Modifier.height(4.dp))
 
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
+            label = { Text("Парола") },
             visualTransformation = if (passwordVisible)
                 VisualTransformation.None
             else
@@ -119,50 +148,54 @@ fun RegisterScreen(navController: NavController , viewModel: RegisterViewModel =
             },
             shape = RoundedCornerShape(16.dp),
             isError = passwordError,
-            placeholder = { Text("min. 6 characters") }
+            placeholder = { Text("мин. 6 символа") }
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,){
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
             Button(
                 onClick = {
                     emailError = email.isBlank()
                     passwordError = password.isBlank()
                     usernameError = username.isBlank()
 
-                    if (emailError || passwordError || usernameError){
-                        Toast.makeText(context, "Please enter password and email", Toast.LENGTH_LONG).show()
-                    }else {
+                    if (emailError || passwordError || usernameError) {
+                        Toast.makeText(
+                            context,
+                            "Моля, въведете имейл, потребителско име и парола",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
                         viewModel.registerUser(navController)
                     }
                 },
                 enabled = !viewModel.isLoading && viewModel.isFormValid
             ) {
-                if (viewModel.isLoading){
+                if (viewModel.isLoading) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                }else{
-                    Text(text = "Register")
+                } else {
+                    Text(text = "Регистрация")
                 }
             }
 
-            if (viewModel.successMessage!=null){
+            if (viewModel.successMessage != null) {
                 LaunchedEffect(viewModel.successMessage) {
                     Toast.makeText(context, viewModel.successMessage, Toast.LENGTH_SHORT).show()
-                    viewModel.successMessage=null
+                    viewModel.successMessage = null
                 }
             }
 
-            Button(onClick = {navController.navigate("login")}) {
-                Text(text = "Go back")
+            Button(onClick = { navController.navigate("login") }) {
+                Text(text = "Назад")
             }
         }
 
         viewModel.errorMessage?.let {
             Text(text = it, color = Color.Red)
         }
-
-
     }
 }

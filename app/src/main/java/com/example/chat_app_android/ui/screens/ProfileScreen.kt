@@ -68,7 +68,7 @@ private fun uriToFile(context: Context, uri: Uri): File {
     val tempFile = File.createTempFile("profile_", ".jpg", context.cacheDir)
 
     val inputStream = context.contentResolver.openInputStream(uri)
-        ?: throw IllegalArgumentException("Cannot open input stream for uri: $uri")
+        ?: throw IllegalArgumentException("Не може да се отвори избраният файл.")
 
     inputStream.use { input ->
         FileOutputStream(tempFile).use { output ->
@@ -166,8 +166,8 @@ fun ProfileScreen(navController: NavController) {
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Logout") },
-            text = { Text("Are you sure you want to logout?") },
+            title = { Text("Изход") },
+            text = { Text("Сигурен ли си, че искаш да излезеш?") },
             confirmButton = {
                 TextButton(onClick = {
                     sessionManager.clearSession()
@@ -175,12 +175,12 @@ fun ProfileScreen(navController: NavController) {
                         popUpTo(0) { inclusive = true }
                     }
                 }) {
-                    Text("Logout", color = Color.Red)
+                    Text("Изход", color = Color.Red)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Cancel")
+                    Text("Отказ")
                 }
             }
         )
@@ -189,8 +189,8 @@ fun ProfileScreen(navController: NavController) {
     if (showDeleteAccountDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAccountDialog = false },
-            title = { Text("Delete account") },
-            text = { Text("This will permanently delete your account and all your chats. This cannot be undone.") },
+            title = { Text("Изтриване на акаунт") },
+            text = { Text("Това ще изтрие завинаги твоя акаунт и всички твои чатове. Действието не може да бъде отменено.") },
             confirmButton = {
                 TextButton(onClick = {
                     val token = sessionManager.fetchAuthToken() ?: return@TextButton
@@ -211,12 +211,12 @@ fun ProfileScreen(navController: NavController) {
                     }
                     showDeleteAccountDialog = false
                 }) {
-                    Text("Delete", color = Color.Red)
+                    Text("Изтрий", color = Color.Red)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAccountDialog = false }) {
-                    Text("Cancel")
+                    Text("Отказ")
                 }
             }
         )
@@ -231,7 +231,7 @@ fun ProfileScreen(navController: NavController) {
                 confirmNewPassword = ""
                 changePasswordError = null
             },
-            title = { Text("Change password") },
+            title = { Text("Смяна на парола") },
             text = {
                 Column {
                     changePasswordError?.let {
@@ -246,7 +246,7 @@ fun ProfileScreen(navController: NavController) {
                     OutlinedTextField(
                         value = currentPassword,
                         onValueChange = { currentPassword = it },
-                        label = { Text("Current password") },
+                        label = { Text("Текуща парола") },
                         visualTransformation = if (currentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { currentPasswordVisible = !currentPasswordVisible }) {
@@ -265,7 +265,7 @@ fun ProfileScreen(navController: NavController) {
                     OutlinedTextField(
                         value = newPassword,
                         onValueChange = { newPassword = it },
-                        label = { Text("New password") },
+                        label = { Text("Нова парола") },
                         visualTransformation = if (newPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { newPasswordVisible = !newPasswordVisible }) {
@@ -284,7 +284,7 @@ fun ProfileScreen(navController: NavController) {
                     OutlinedTextField(
                         value = confirmNewPassword,
                         onValueChange = { confirmNewPassword = it },
-                        label = { Text("Confirm new password") },
+                        label = { Text("Потвърди новата парола") },
                         visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
@@ -303,15 +303,15 @@ fun ProfileScreen(navController: NavController) {
             confirmButton = {
                 TextButton(onClick = {
                     if (currentPassword.isBlank() || newPassword.isBlank()) {
-                        changePasswordError = "Please fill in all fields"
+                        changePasswordError = "Моля, попълнете всички полета"
                         return@TextButton
                     }
                     if (newPassword != confirmNewPassword) {
-                        changePasswordError = "Passwords do not match"
+                        changePasswordError = "Паролите не съвпадат"
                         return@TextButton
                     }
                     if (newPassword.length < 6) {
-                        changePasswordError = "Password must be at least 6 characters"
+                        changePasswordError = "Паролата трябва да е поне 6 символа"
                         return@TextButton
                     }
 
@@ -324,21 +324,21 @@ fun ProfileScreen(navController: NavController) {
                                 ChangePasswordRequest(currentPassword, newPassword)
                             )
                             if (response.isSuccessful) {
-                                Toast.makeText(context, "Password changed successfully!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Паролата беше сменена успешно!", Toast.LENGTH_SHORT).show()
                                 showChangePasswordDialog = false
                                 currentPassword = ""
                                 newPassword = ""
                                 confirmNewPassword = ""
                                 changePasswordError = null
                             } else {
-                                changePasswordError = "Current password is incorrect"
+                                changePasswordError = "Текущата парола е грешна"
                             }
                         } catch (_: Exception) {
-                            changePasswordError = "Network error"
+                            changePasswordError = "Грешка в мрежата"
                         }
                     }
                 }) {
-                    Text("Save")
+                    Text("Запази")
                 }
             },
             dismissButton = {
@@ -349,7 +349,7 @@ fun ProfileScreen(navController: NavController) {
                     confirmNewPassword = ""
                     changePasswordError = null
                 }) {
-                    Text("Cancel")
+                    Text("Отказ")
                 }
             }
         )
@@ -361,10 +361,10 @@ fun ProfileScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Profile") },
+                title = { Text("Профил") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
                     }
                 }
             )
@@ -382,7 +382,7 @@ fun ProfileScreen(navController: NavController) {
             if (fullProfileImageUrl != null) {
                 AsyncImage(
                     model = fullProfileImageUrl,
-                    contentDescription = "Profile image",
+                    contentDescription = "Профилна снимка",
                     modifier = Modifier
                         .size(100.dp)
                         .clip(CircleShape)
@@ -410,7 +410,7 @@ fun ProfileScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isUploadingProfileImage
             ) {
-                Text(if (isUploadingProfileImage) "Uploading..." else "Change profile picture")
+                Text(if (isUploadingProfileImage) "Качване..." else "Смени профилната снимка")
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -431,7 +431,7 @@ fun ProfileScreen(navController: NavController) {
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text("Change password", fontSize = 16.sp)
+                Text("Смени паролата", fontSize = 16.sp)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -443,7 +443,7 @@ fun ProfileScreen(navController: NavController) {
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text("Logout", color = Color.White, fontSize = 16.sp)
+                Text("Изход", color = Color.White, fontSize = 16.sp)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -456,7 +456,7 @@ fun ProfileScreen(navController: NavController) {
                     .height(50.dp),
                 enabled = !isDeleting
             ) {
-                Text("Delete Account", color = Color.White, fontSize = 16.sp)
+                Text("Изтрий акаунта", color = Color.White, fontSize = 16.sp)
             }
         }
     }

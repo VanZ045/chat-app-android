@@ -72,16 +72,16 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
                 if (usersResponse.isSuccessful) {
                     _users.value = usersResponse.body() ?: emptyList()
                 } else {
-                    _error.value = "Failed to load users"
+                    _error.value = "Неуспешно зареждане на потребители"
                 }
 
                 if (chatsResponse.isSuccessful) {
                     _chats.value = chatsResponse.body() ?: emptyList()
                 } else {
-                    _error.value = "Failed to load chats"
+                    _error.value = "Неуспешно зареждане на чатове"
                 }
             } catch (e: Exception) {
-                _error.value = "Network error"
+                _error.value = "Мрежова грешка"
             } finally {
                 _isLoading.value = false
             }
@@ -170,10 +170,10 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
                         }
                     }
                     401 -> {sessionManager.clearSession(); _sessionExpired.value = true}
-                    else -> _error.value = "Failed to open chat"
+                    else -> _error.value = "Неуспешно зареждане на чат"
                 }
             }catch(e: Exception){
-                _error.value = "Failed to open chat"
+                _error.value = "Неуспешно зареждане на чат"
             }
         }
     }
@@ -189,7 +189,7 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
             when{
                 dt.toLocalDate() == now.toLocalDate() ->
                     dt.format(DateTimeFormatter.ofPattern("HH:mm"))
-                dt.toLocalDate() == now.toLocalDate().minusDays(1) -> "Yesterday"
+                dt.toLocalDate() == now.toLocalDate().minusDays(1) -> "Вчера"
                 else ->
                     dt.format(DateTimeFormatter.ofPattern("dd/MM"))
             }
@@ -217,7 +217,7 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
                     _sessionExpired.value = true
                 }
             }catch (e: Exception){
-                _error.value = "Failed to delete chat"
+                _error.value = "Неуспешно изтриване на чат"
             }
         }
     }

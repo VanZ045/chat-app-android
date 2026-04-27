@@ -56,10 +56,10 @@ fun ResetPasswordScreen(navController: NavController, email: String) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Reset Password") },
+                title = { Text("Смяна на парола") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 }
             )
@@ -74,23 +74,27 @@ fun ResetPasswordScreen(navController: NavController, email: String) {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Enter the code sent to $email and your new password.",
+                text = "Въведете кода, изпратен на $email, и новата си парола.",
                 style = MaterialTheme.typography.bodyMedium
             )
+
             Spacer(modifier = Modifier.height(24.dp))
+
             OutlinedTextField(
                 value = code,
                 onValueChange = { code = it.uppercase() },
-                label = { Text("Reset code") },
+                label = { Text("Код за смяна") },
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+
             Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = newPassword,
                 onValueChange = { newPassword = it },
-                label = { Text("New password") },
+                label = { Text("Нова парола") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                 trailingIcon = {
                     IconButton(onClick = { newPasswordVisible = !newPasswordVisible }) {
@@ -100,16 +104,22 @@ fun ResetPasswordScreen(navController: NavController, email: String) {
                         )
                     }
                 },
-                visualTransformation = if (newPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                visualTransformation = if (newPasswordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+
             Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = confirmPassword,
                 onValueChange = { confirmPassword = it },
-                label = { Text("Confirm new password") },
+                label = { Text("Потвърди новата парола") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                 visualTransformation = PasswordVisualTransformation(),
                 shape = RoundedCornerShape(16.dp),
@@ -117,21 +127,24 @@ fun ResetPasswordScreen(navController: NavController, email: String) {
                 singleLine = true,
                 isError = confirmPassword.isNotEmpty() && confirmPassword != newPassword
             )
+
             Spacer(modifier = Modifier.height(24.dp))
+
             Button(
                 onClick = {
                     if (code.isBlank() || newPassword.isBlank()) {
-                        Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Моля, попълнете всички полета", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     if (newPassword != confirmPassword) {
-                        Toast.makeText(context, "Passwords do not match", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Паролите не съвпадат", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     if (newPassword.length < 6) {
-                        Toast.makeText(context, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Паролата трябва да е поне 6 символа", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
+
                     isLoading = true
                     scope.launch {
                         try {
@@ -139,25 +152,33 @@ fun ResetPasswordScreen(navController: NavController, email: String) {
                                 ResetPasswordRequest(code, newPassword)
                             )
                             if (response.isSuccessful) {
-                                Toast.makeText(context, "Password reset successfully!", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Паролата беше сменена успешно!", Toast.LENGTH_LONG).show()
                                 navController.navigate("login") {
                                     popUpTo(0) { inclusive = true }
                                 }
                             } else {
-                                Toast.makeText(context, "Invalid or expired code", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Невалиден или изтекъл код", Toast.LENGTH_SHORT).show()
                             }
                         } catch (e: Exception) {
-                            Toast.makeText(context, "Network error", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Грешка в мрежата", Toast.LENGTH_SHORT).show()
                         } finally {
                             isLoading = false
                         }
                     }
                 },
                 enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth().height(50.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
             ) {
-                if (isLoading) CircularProgressIndicator(color = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(20.dp))
-                else Text("Reset Password")
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Text("Смени паролата")
+                }
             }
         }
     }

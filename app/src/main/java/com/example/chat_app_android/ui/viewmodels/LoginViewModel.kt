@@ -52,22 +52,17 @@ class LoginViewModel : ViewModel() {
                         FirebaseMessaging.getInstance().token
                             .addOnCompleteListener { task ->
                                 if (!task.isSuccessful) {
-                                    Log.w("FCM_DEBUG", "Fetching FCM token failed", task.exception)
                                     return@addOnCompleteListener
                                 }
 
                                 val fcmToken = task.result
-                                Log.d("FCM_DEBUG", "FCM token after login = $fcmToken")
-
                                 viewModelScope.launch {
                                     try {
                                         val tokenResponse = RetrofitClient.apiService.saveDeviceToken(
                                             token = "Bearer ${authBody.token}",
                                             request = DeviceTokenRequest(fcmToken)
                                         )
-                                        Log.d("FCM_DEBUG", "saveDeviceToken response = ${tokenResponse.code()}")
                                     } catch (e: Exception) {
-                                        Log.e("FCM_DEBUG", "Failed to send device token", e)
                                     }
                                 }
                             }
@@ -79,17 +74,17 @@ class LoginViewModel : ViewModel() {
                 } else {
                     val errorJson = response.errorBody()?.string()
                     val errorObj = Gson().fromJson(errorJson, AuthResponse::class.java)
-                    errorMessage = errorObj?.message ?: "Invalid data"
+                    errorMessage = errorObj?.message ?: "Невалидни данни"
                 }
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     sessionManager.clearSession()
                     navController.navigate("login")
                 } else {
-                    errorMessage = "Login failed"
+                    errorMessage = "Неуспешно влизане"
                 }
             } catch (e: Exception) {
-                errorMessage = "Bad connection: " + e.message
+                errorMessage = "Лоша връзка с мрежата: " + e.message
             } finally {
                 isLoading = false
             }

@@ -43,17 +43,17 @@ import kotlinx.coroutines.launch
 @Composable
 fun ForgotPasswordScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
-    var isLoading by remember {mutableStateOf(false)}
+    var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Forgot password") },
+                title = { Text("Забравена парола") },
                 navigationIcon = {
-                    IconButton(onClick = {navController.popBackStack()}) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 }
             )
@@ -68,52 +68,70 @@ fun ForgotPasswordScreen(navController: NavController) {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Enter your email address and we'll send you a reset code",
+                text = "Въведете своя имейл адрес и ще ви изпратим код за смяна на паролата",
                 style = MaterialTheme.typography.bodyMedium
             )
+
             Spacer(modifier = Modifier.height(24.dp))
+
             OutlinedTextField(
                 value = email,
-                onValueChange = {email = it},
-                label = {Text("Email address")},
-                leadingIcon = {Icon(Icons.Default.Email, contentDescription = null)},
+                onValueChange = { email = it },
+                label = { Text("Имейл адрес") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+
             Spacer(modifier = Modifier.height(24.dp))
+
             Button(
                 onClick = {
-                    if(email.isBlank()){
-                        Toast.makeText(context, "Please enter your email", Toast.LENGTH_SHORT).show()
+                    if (email.isBlank()) {
+                        Toast.makeText(context, "Моля, въведете своя имейл", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
+
                     isLoading = true
                     scope.launch {
-                        try{
+                        try {
                             val response = RetrofitClient.apiService.forgotPassword(
                                 ForgotPasswordRequest(email)
                             )
-                            if(response.isSuccessful){
-                                Toast.makeText(context, "Reset code sent to your email", Toast.LENGTH_LONG).show()
+                            if (response.isSuccessful) {
+                                Toast.makeText(
+                                    context,
+                                    "Кодът за смяна на паролата беше изпратен на вашия имейл",
+                                    Toast.LENGTH_LONG
+                                ).show()
                                 navController.navigate("reset-password/${email}")
-                            }else if(response.code() == 429){
-                                Toast.makeText(context, "Please wait a few minutes before requesting a new code", Toast.LENGTH_LONG).show()
-                            } else{
-                                Toast.makeText(context, "Something went wrong", Toast.LENGTH_SHORT).show()
+                            } else if (response.code() == 429) {
+                                Toast.makeText(
+                                    context,
+                                    "Моля, изчакайте няколко минути, преди да поискате нов код",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                Toast.makeText(context, "Възникна грешка", Toast.LENGTH_SHORT).show()
                             }
-                        }catch (e: Exception){
-                            Toast.makeText(context, "Network error", Toast.LENGTH_SHORT).show()
-                        }finally {
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Грешка в мрежата", Toast.LENGTH_SHORT).show()
+                        } finally {
                             isLoading = false
                         }
                     }
                 },
                 enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth().height(50.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
             ) {
-                if(isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                else Text("Send Reset Code")
+                if (isLoading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                } else {
+                    Text("Изпрати код")
+                }
             }
         }
     }

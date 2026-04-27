@@ -54,10 +54,10 @@ class RegisterViewModel : ViewModel(){
                 }else{
                     val errorJson = response.errorBody()?.string()
                     val errorObj = Gson().fromJson(errorJson, AuthResponse::class.java)
-                    errorMessage = errorObj?.message ?: "Invalid data"
+                    errorMessage = errorObj?.message ?: "Невалидни данни"
                 }
             }catch (e: Exception){
-                errorMessage = "Bad connection: " + e.message
+                errorMessage = "Лоша връзка с мрежата: " + e.message
             }finally {
                 isLoading = false
             }

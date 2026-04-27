@@ -44,45 +44,60 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.chat_app_android.R
 import com.example.chat_app_android.ui.viewmodels.LoginViewModel
+
 @Composable
-fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewModel()){
+fun LoginScreen(navController: NavController, viewModel: LoginViewModel = viewModel()) {
     var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("")}
+    var password by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf(false) }
     var passwordError by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
 
-
     val context = LocalContext.current
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFEDE8E6)),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFEDE8E6)),
         verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally) {
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
 
-        Image(painter = painterResource(id = R.drawable.user),
-                contentDescription = "Login image", modifier = Modifier.size(200.dp)
+        Image(
+            painter = painterResource(id = R.drawable.user),
+            contentDescription = "Изображение за вход",
+            modifier = Modifier.size(200.dp)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(text = "Welcome back!", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = "Добре дошъл отново!",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold
+        )
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        Text(text = "Login to your account")
+        Text(text = "Влез в своя акаунт")
 
-        OutlinedTextField(value = email, onValueChange = {email=it }, label = {
-            Text(text = "Email address")},leadingIcon = {
-            Icon(Icons.Default.Email, contentDescription = null)
-        },shape = RoundedCornerShape(16.dp), isError = emailError)
-
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text(text = "Имейл адрес") },
+            leadingIcon = {
+                Icon(Icons.Default.Email, contentDescription = null)
+            },
+            shape = RoundedCornerShape(16.dp),
+            isError = emailError
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
+            label = { Text("Парола") },
             visualTransformation = if (passwordVisible)
                 VisualTransformation.None
             else
@@ -111,25 +126,32 @@ fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewM
                 emailError = email.isBlank()
                 passwordError = password.isBlank()
 
-                if (emailError || passwordError){
-                    Toast.makeText(context, "Please enter password and email", Toast.LENGTH_LONG).show()
-                }else {
-                    viewModel.loginUser(navController,email,password,context)
+                if (emailError || passwordError) {
+                    Toast.makeText(
+                        context,
+                        "Моля, въведете имейл и парола",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    viewModel.loginUser(navController, email, password, context)
                 }
             },
             enabled = !viewModel.isLoading
         ) {
             if (viewModel.isLoading) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                CircularProgressIndicator(
+                    color = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
             } else {
-                Text("Login")
+                Text("Вход")
             }
         }
 
-        if (viewModel.successMessage!=null){
+        if (viewModel.successMessage != null) {
             LaunchedEffect(viewModel.successMessage) {
                 Toast.makeText(context, viewModel.successMessage, Toast.LENGTH_SHORT).show()
-                viewModel.successMessage=null
+                viewModel.successMessage = null
             }
         }
 
@@ -139,16 +161,15 @@ fun LoginScreen(navController: NavController , viewModel: LoginViewModel = viewM
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        TextButton(onClick = {navController.navigate("forgot-password")}){
-            Text("Forgot password?", color = MaterialTheme.colorScheme.primary)
+        TextButton(onClick = { navController.navigate("forgot-password") }) {
+            Text("Забравена парола?", color = MaterialTheme.colorScheme.primary)
         }
 
-        Text(text = "Don't have an account yet?")
+        Text(text = "Все още нямаш акаунт?")
 
-        TextButton(onClick = {navController.navigate("register")}) {
-            Text(text = "Register here!")
-            Icon(Icons.Default.AccountBox,contentDescription = null, Modifier.size(16.dp))
+        TextButton(onClick = { navController.navigate("register") }) {
+            Text(text = "Регистрирай се тук!")
+            Icon(Icons.Default.AccountBox, contentDescription = null, Modifier.size(16.dp))
         }
     }
 }
-

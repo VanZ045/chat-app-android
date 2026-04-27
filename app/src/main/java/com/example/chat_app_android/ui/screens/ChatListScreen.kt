@@ -149,7 +149,7 @@ fun ChatListScreen(
                         TextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search people...") },
+                            placeholder = { Text("Търси хора...") },
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
@@ -161,7 +161,7 @@ fun ChatListScreen(
                         )
                     } else {
                         Text(
-                            text = "Chats",
+                            text = "Чатове",
                             fontWeight = FontWeight.Bold,
                             fontSize = 22.sp
                         )
@@ -176,7 +176,7 @@ fun ChatListScreen(
                     ) {
                         Icon(
                             imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = "Search"
+                            contentDescription = "Търсене"
                         )
                     }
 
@@ -187,7 +187,7 @@ fun ChatListScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.AccountCircle,
-                            contentDescription = "Profile"
+                            contentDescription = "Профил"
                         )
                     }
                 }
@@ -198,19 +198,19 @@ fun ChatListScreen(
         chatToDelete?.let { chat ->
             AlertDialog(
                 onDismissRequest = { chatToDelete = null },
-                title = { Text("Delete chat") },
-                text = { Text("Delete your conversation with ${chat.otherUsername}?") },
+                title = { Text("Изтриване на чат") },
+                text = { Text("Да изтрия ли разговора ти с ${chat.otherUsername}?") },
                 confirmButton = {
                     TextButton(onClick = {
                         viewModel.deleteChat(chat.chatId)
                         chatToDelete = null
                     }) {
-                        Text("Delete", color = Color.Red)
+                        Text("Изтрий", color = Color.Red)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { chatToDelete = null }) {
-                        Text("Cancel")
+                        Text("Отказ")
                     }
                 }
             )
@@ -243,7 +243,7 @@ fun ChatListScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Button(onClick = { viewModel.loadUsers() }) {
-                            Text("Retry")
+                            Text("Опитай отново")
                         }
                     }
                 }
@@ -266,7 +266,7 @@ fun ChatListScreen(
                                         .padding(32.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("No users found", color = Color.Gray)
+                                    Text("Няма намерени потребители", color = Color.Gray)
                                 }
                             }
                         } else {
@@ -287,7 +287,7 @@ fun ChatListScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        "No chats yet — tap search to find someone!",
+                                        "Все още нямаш чатове — натисни търсене, за да намериш някого!",
                                         color = Color.Gray
                                     )
                                 }
@@ -333,14 +333,14 @@ fun ChatItem(
     val fullProfileImageUrl = buildImageUrl(chat.otherUserProfileImageUrl)
 
     val lastMessageText = when {
-        isTyping -> "typing..."
-        chat.lastMessage.isEmpty() -> "Tap to start chatting"
+        isTyping -> "пише..."
+        chat.lastMessage.isEmpty() -> "Натисни, за да започнете чат"
         chat.lastMessageSenderId == currentUserId -> when (chat.lastMessage) {
-            "[Image]" -> "You sent a photo"
-            else -> "You: ${chat.lastMessage}"
+            "[Image]" -> "Ти изпрати снимка"
+            else -> "Ти: ${chat.lastMessage}"
         }
         else -> when (chat.lastMessage) {
-            "[Image]" -> "sent a photo"
+            "[Image]" -> "изпрати снимка"
             else -> chat.lastMessage
         }
     }
@@ -358,7 +358,7 @@ fun ChatItem(
         if (fullProfileImageUrl != null) {
             AsyncImage(
                 model = fullProfileImageUrl,
-                contentDescription = "Profile image",
+                contentDescription = "Профилна снимка",
                 modifier = Modifier
                     .size(54.dp)
                     .clip(CircleShape)
@@ -436,7 +436,7 @@ fun UserItem(user: UserModel, onClick: () -> Unit) {
         if (fullProfileImageUrl != null) {
             AsyncImage(
                 model = fullProfileImageUrl,
-                contentDescription = "Profile image",
+                contentDescription = "Профилна снимка",
                 modifier = Modifier
                     .size(54.dp)
                     .clip(CircleShape)

@@ -24,13 +24,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d("FCM_DEBUG", "New token: $token")
 
         val sessionManager = SessionManager(applicationContext)
         val authToken = sessionManager.fetchAuthToken()
 
         if (authToken.isNullOrBlank()) {
-            Log.d("FCM_DEBUG", "No auth token, can't send FCM token yet")
             return
         }
 
@@ -40,7 +38,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     token = "Bearer $authToken",
                     request = DeviceTokenRequest(token)
                 )
-                Log.d("FCM_DEBUG", "saveDeviceToken from onNewToken = ${response.code()}")
             } catch (e: Exception) {
                 Log.e("FCM_DEBUG", "Failed to send token from onNewToken", e)
             }
@@ -51,13 +48,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
 
-        Log.d("FCM_DEBUG", "onMessageReceived called")
-        Log.d("FCM_DEBUG", "title = ${message.notification?.title}")
-        Log.d("FCM_DEBUG", "body = ${message.notification?.body}")
-        Log.d("FCM_DEBUG", "data = ${message.data}")
-
-        val title = message.notification?.title ?: "New message"
-        val body = message.notification?.body ?: "You received a message"
+        val title = message.notification?.title ?: "Ново съобщение"
+        val body = message.notification?.body ?: "Получихте съобщение"
 
         showNotification(title, body)
     }

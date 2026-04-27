@@ -1,11 +1,17 @@
 package com.example.chat_app_android.ui.screens
 
+import android.Manifest
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +34,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,10 +49,12 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,28 +67,16 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.chat_app_android.data.models.MessageModel
-import com.example.chat_app_android.ui.viewmodels.ChatViewModel
-import kotlin.math.absoluteValue
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
-import android.Manifest
-import android.content.Context
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.TextButton
-import androidx.core.content.FileProvider
+import com.example.chat_app_android.data.models.MessageModel
 import com.example.chat_app_android.data.network.RetrofitClient
+import com.example.chat_app_android.ui.viewmodels.ChatViewModel
 import java.io.File
-import androidx.compose.runtime.DisposableEffect
+import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +85,7 @@ fun ChatScreen(
     chatId: Long,
     otherUsername: String,
     viewModel: ChatViewModel = viewModel()
-){
+) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val sessionExpired by viewModel.sessionExpired.collectAsStateWithLifecycle()
@@ -93,7 +93,7 @@ fun ChatScreen(
     val failedMessageContent by viewModel.failedMessageContent.collectAsStateWithLifecycle()
 
     var messageText by remember { mutableStateOf("") }
-    var messageToEdit by remember {mutableStateOf<MessageModel?>(null)}
+    var messageToEdit by remember { mutableStateOf<MessageModel?>(null) }
     val listState = rememberLazyListState()
     val currentUserId = viewModel.getCurrentUserId()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -104,7 +104,7 @@ fun ChatScreen(
         onDispose {
             viewModel.leaveActiveChat()
         }
-    } 
+    }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -136,9 +136,9 @@ fun ChatScreen(
     }
 
     LaunchedEffect(sessionExpired) {
-        if(sessionExpired){
-            navController.navigate("login"){
-                popUpTo(0) {inclusive = true}
+        if (sessionExpired) {
+            navController.navigate("login") {
+                popUpTo(0) { inclusive = true }
             }
         }
     }
@@ -148,7 +148,7 @@ fun ChatScreen(
     }
 
     LaunchedEffect(messages.size) {
-        if(messages.isNotEmpty()){
+        if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
@@ -160,25 +160,25 @@ fun ChatScreen(
     )
     val avatarColor = avatarColors[otherUsername.hashCode().absoluteValue % avatarColors.size]
 
-    val lastOwnMessageId = messages.lastOrNull{it.senderId == currentUserId}?.id
+    val lastOwnMessageId = messages.lastOrNull { it.senderId == currentUserId }?.id
 
     LaunchedEffect(failedMessageContent) {
-        failedMessageContent?.let {content ->
+        failedMessageContent?.let { content ->
             val result = snackbarHostState.showSnackbar(
-                message = "Message failed to send",
-                actionLabel = "Retry",
+                message = "Съобщението не беше изпратено",
+                actionLabel = "Опитай отново",
                 duration = SnackbarDuration.Long
             )
-            if(result == SnackbarResult.ActionPerformed){
+            if (result == SnackbarResult.ActionPerformed) {
                 viewModel.retryMessage(chatId, content)
-            }else{
+            } else {
                 viewModel.clearFailedMessage()
             }
         }
     }
 
     Scaffold(
-        snackbarHost = {SnackbarHost(snackbarHostState)},
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -190,7 +190,7 @@ fun ChatScreen(
                                 .size(38.dp)
                                 .background(avatarColor, CircleShape),
                             contentAlignment = Alignment.Center
-                        ){
+                        ) {
                             Text(
                                 text = otherUsername.first().uppercaseChar().toString(),
                                 color = Color.White,
@@ -207,8 +207,8 @@ fun ChatScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = {navController.popBackStack()}) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 }
             )
@@ -246,7 +246,7 @@ fun ChatScreen(
                 ) {
                     Icon(
                         Icons.Default.CameraAlt,
-                        contentDescription = "Camera",
+                        contentDescription = "Камера",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -259,7 +259,7 @@ fun ChatScreen(
                         messageText = it
                         if (it.isNotEmpty()) viewModel.onUserTyping(chatId)
                     },
-                    placeholder = { Text("Message...") },
+                    placeholder = { Text("Съобщение...") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp),
                     colors = TextFieldDefaults.colors(
@@ -284,15 +284,14 @@ fun ChatScreen(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
+                        contentDescription = "Изпрати",
                         tint = Color.White,
                         modifier = Modifier.size(22.dp)
                     )
                 }
             }
         }
-    ) {
-        paddingValues ->
+    ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -314,7 +313,7 @@ fun ChatScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No messages yet.\nSay hello",
+                            text = "Все още няма съобщения.\nКажи здрасти",
                             color = Color.Gray,
                             fontSize = 16.sp
                         )
@@ -338,10 +337,10 @@ fun ChatScreen(
                                 message = message,
                                 isOwnMessage = message.senderId == currentUserId,
                                 showStatusLabel = message.id == lastOwnMessageId && message.senderId == currentUserId,
-                                onEditRequest = {selectedMessage ->
+                                onEditRequest = { selectedMessage ->
                                     messageToEdit = selectedMessage
                                 },
-                                onDeleteRequest = {selectedMessage ->
+                                onDeleteRequest = { selectedMessage ->
                                     viewModel.deleteMessage(chatId, selectedMessage.id)
                                 }
                             )
@@ -350,7 +349,6 @@ fun ChatScreen(
                 }
             }
 
-            // Typing indicator at the bottom
             AnimatedVisibility(
                 visible = isOtherTyping,
                 modifier = Modifier.align(Alignment.BottomStart),
@@ -365,7 +363,7 @@ fun ChatScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "$otherUsername is typing...",
+                        text = "$otherUsername пише...",
                         color = Color.Gray,
                         fontSize = 13.sp,
                         fontStyle = FontStyle.Italic
@@ -373,28 +371,32 @@ fun ChatScreen(
                 }
             }
 
-            messageToEdit?.let{msg ->
-                var editText by remember(msg.id) {mutableStateOf(msg.content ?: "")}
+            messageToEdit?.let { msg ->
+                var editText by remember(msg.id) { mutableStateOf(msg.content ?: "") }
                 AlertDialog(
-                    onDismissRequest = {messageToEdit = null},
-                    title = {Text("Edit message")},
+                    onDismissRequest = { messageToEdit = null },
+                    title = { Text("Редактиране на съобщение") },
                     text = {
-                       TextField(
-                           value = editText,
-                           onValueChange = {editText = it},
-                           singleLine = false
-                       )
+                        TextField(
+                            value = editText,
+                            onValueChange = { editText = it },
+                            singleLine = false
+                        )
                     },
                     confirmButton = {
                         TextButton(onClick = {
-                            if(editText.isNotBlank()){
+                            if (editText.isNotBlank()) {
                                 viewModel.editMessage(chatId, msg.id, editText)
                             }
                             messageToEdit = null
-                        }) { Text("Save")}
+                        }) {
+                            Text("Запази")
+                        }
                     },
                     dismissButton = {
-                        TextButton(onClick = {messageToEdit = null}) {Text("Cancel") }
+                        TextButton(onClick = { messageToEdit = null }) {
+                            Text("Отказ")
+                        }
                     }
                 )
             }
@@ -418,9 +420,13 @@ private fun createImageUri(context: Context): Uri {
 }
 
 @Composable
-fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel: Boolean,
-                  onEditRequest: (MessageModel) -> Unit,
-                  onDeleteRequest: (MessageModel) -> Unit) {
+fun MessageBubble(
+    message: MessageModel,
+    isOwnMessage: Boolean,
+    showStatusLabel: Boolean,
+    onEditRequest: (MessageModel) -> Unit,
+    onDeleteRequest: (MessageModel) -> Unit
+) {
     val formattedTime = remember(message.createdAt) {
         try {
             val dt = java.time.LocalDateTime.parse(message.createdAt)
@@ -429,7 +435,6 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
             ""
         }
     }
-
 
     val baseUrl = RetrofitClient.BASE_URL.trimEnd('/')
     val fullImageUrl = remember(message.imageUrl) {
@@ -457,7 +462,7 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
                 )
                 .combinedClickable(
                     onClick = {},
-                    onLongClick = {if(isOwnMessage) showMenu = true}
+                    onLongClick = { if (isOwnMessage) showMenu = true }
                 )
                 .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
@@ -476,13 +481,13 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
                         if (fullImageUrl != null) {
                             AsyncImage(
                                 model = fullImageUrl,
-                                contentDescription = "Sent image",
+                                contentDescription = "Изпратена снимка",
                                 modifier = Modifier
                                     .fillMaxSize()
                             )
                         } else {
                             Text(
-                                text = "Image unavailable",
+                                text = "Снимката не е налична",
                                 color = if (isOwnMessage) Color.White
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 15.sp
@@ -507,7 +512,7 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
         if (isOwnMessage && showStatusLabel && message.status == "SEEN") {
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "Seen",
+                text = "Видяно",
                 color = Color.Gray,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(end = 4.dp)
@@ -516,11 +521,11 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
 
         DropdownMenu(
             expanded = showMenu,
-            onDismissRequest = {showMenu = false}
+            onDismissRequest = { showMenu = false }
         ) {
-            if(message.type == "TEXT"){
+            if (message.type == "TEXT") {
                 DropdownMenuItem(
-                    text = {Text("edit")},
+                    text = { Text("Редактирай") },
                     onClick = {
                         showMenu = false
                         onEditRequest(message)
@@ -528,7 +533,7 @@ fun MessageBubble(message: MessageModel, isOwnMessage: Boolean, showStatusLabel:
                 )
             }
             DropdownMenuItem(
-                text = {Text("delete")},
+                text = { Text("Изтрий") },
                 onClick = {
                     showMenu = false
                     onDeleteRequest(message)
