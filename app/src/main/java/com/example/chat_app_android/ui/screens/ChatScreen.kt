@@ -62,7 +62,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -84,6 +86,7 @@ fun ChatScreen(
     navController: NavController,
     chatId: Long,
     otherUsername: String,
+    otherUserProfileImageUrl: String? = null,
     viewModel: ChatViewModel = viewModel()
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
@@ -182,21 +185,36 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .background(avatarColor, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = otherUsername.first().uppercaseChar().toString(),
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                    val fullOtherImageUrl = remember(otherUserProfileImageUrl) {
+                        if (!otherUserProfileImageUrl.isNullOrBlank() && otherUserProfileImageUrl != "null")
+                            RetrofitClient.BASE_URL.trimEnd('/') + otherUserProfileImageUrl
+                        else null
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (fullOtherImageUrl != null) {
+                            AsyncImage(
+                                model = fullOtherImageUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
                             )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(avatarColor, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = otherUsername.first().uppercaseChar().toString(),
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(

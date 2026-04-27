@@ -6,43 +6,23 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -53,6 +33,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.chat_app_android.data.local.SessionManager
 import com.example.chat_app_android.data.models.ChangePasswordRequest
+import com.example.chat_app_android.data.models.ChangeUsernameRequest
 import com.example.chat_app_android.data.models.UserModel
 import com.example.chat_app_android.data.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
@@ -66,16 +47,9 @@ import kotlin.math.absoluteValue
 
 private fun uriToFile(context: Context, uri: Uri): File {
     val tempFile = File.createTempFile("profile_", ".jpg", context.cacheDir)
-
     val inputStream = context.contentResolver.openInputStream(uri)
-        ?: throw IllegalArgumentException("Не може да се отвори избраният файл.")
-
-    inputStream.use { input ->
-        FileOutputStream(tempFile).use { output ->
-            input.copyTo(output)
-        }
-    }
-
+        ?: throw IllegalArgumentException("Cannot open file.")
+    inputStream.use { input -> FileOutputStream(tempFile).use { input.copyTo(it) } }
     return tempFile
 }
 
@@ -90,7 +64,7 @@ fun ProfileScreen(navController: NavController) {
     var isUploadingProfileImage by remember { mutableStateOf(false) }
 
     val email = currentUser?.email ?: sessionManager.fetchEmail().orEmpty()
-    val username = currentUser?.username ?: ""
+    val username = currentUser?.username ?: sessionManager.fetchUsername().orEmpty()
     val firstLetter = when {
         username.isNotEmpty() -> username.first().uppercaseChar().toString()
         email.isNotEmpty() -> email.first().uppercaseChar().toString()
@@ -106,6 +80,7 @@ fun ProfileScreen(navController: NavController) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
+
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
@@ -115,54 +90,40 @@ fun ProfileScreen(navController: NavController) {
     var newPasswordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
+    var showChangeUsernameDialog by remember { mutableStateOf(false) }
+    var newUsername by remember { mutableStateOf("") }
+    var changeUsernameError by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(Unit) {
         val token = sessionManager.fetchAuthToken() ?: return@LaunchedEffect
         try {
             val response = RetrofitClient.apiService.getMe("Bearer $token")
-            if (response.isSuccessful) {
-                currentUser = response.body()
-            }
-        } catch (_: Exception) {
-        }
+            if (response.isSuccessful) currentUser = response.body()
+        } catch (_: Exception) {}
     }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-
         val token = sessionManager.fetchAuthToken() ?: return@rememberLauncherForActivityResult
-
         scope.launch(Dispatchers.IO) {
             try {
                 isUploadingProfileImage = true
-
                 val file = uriToFile(context, uri)
                 val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
-                val multipartBody = MultipartBody.Part.createFormData(
-                    "file",
-                    file.name,
-                    requestFile
-                )
-
-                val uploadResponse = RetrofitClient.apiService.uploadProfileImage(
-                    token = "Bearer $token",
-                    file = multipartBody
-                )
-
+                val multipartBody = MultipartBody.Part.createFormData("file", file.name, requestFile)
+                val uploadResponse = RetrofitClient.apiService.uploadProfileImage("Bearer $token", multipartBody)
                 if (uploadResponse.isSuccessful) {
                     val meResponse = RetrofitClient.apiService.getMe("Bearer $token")
-                    if (meResponse.isSuccessful) {
-                        currentUser = meResponse.body()
-                    }
+                    if (meResponse.isSuccessful) currentUser = meResponse.body()
                 }
             } catch (_: Exception) {
-            } finally {
-                isUploadingProfileImage = false
-            }
+            } finally { isUploadingProfileImage = false }
         }
     }
 
+    // Logout dialog
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -171,21 +132,16 @@ fun ProfileScreen(navController: NavController) {
             confirmButton = {
                 TextButton(onClick = {
                     sessionManager.clearSession()
-                    navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }
-                    }
-                }) {
-                    Text("Изход", color = Color.Red)
-                }
+                    navController.navigate("login") { popUpTo(0) { inclusive = true } }
+                }) { Text("Изход", color = Color.Red) }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Отказ")
-                }
+                TextButton(onClick = { showLogoutDialog = false }) { Text("Отказ") }
             }
         )
     }
 
+    // Delete account dialog
     if (showDeleteAccountDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAccountDialog = false },
@@ -200,98 +156,65 @@ fun ProfileScreen(navController: NavController) {
                             val response = RetrofitClient.apiService.deleteAccount("Bearer $token")
                             if (response.code() == 200) {
                                 sessionManager.clearSession()
-                                navController.navigate("login") {
-                                    popUpTo(0) { inclusive = true }
-                                }
+                                navController.navigate("login") { popUpTo(0) { inclusive = true } }
                             }
                         } catch (_: Exception) {
-                        } finally {
-                            isDeleting = false
-                        }
+                        } finally { isDeleting = false }
                     }
                     showDeleteAccountDialog = false
-                }) {
-                    Text("Изтрий", color = Color.Red)
-                }
+                }) { Text("Изтрий", color = Color.Red) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteAccountDialog = false }) {
-                    Text("Отказ")
-                }
+                TextButton(onClick = { showDeleteAccountDialog = false }) { Text("Отказ") }
             }
         )
     }
 
+    // Change password dialog
     if (showChangePasswordDialog) {
         AlertDialog(
             onDismissRequest = {
                 showChangePasswordDialog = false
-                currentPassword = ""
-                newPassword = ""
-                confirmNewPassword = ""
-                changePasswordError = null
+                currentPassword = ""; newPassword = ""; confirmNewPassword = ""; changePasswordError = null
             },
             title = { Text("Смяна на парола") },
             text = {
                 Column {
                     changePasswordError?.let {
-                        Text(
-                            it,
-                            color = Color.Red,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(it, color = Color.Red, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(8.dp))
                     }
-
                     OutlinedTextField(
-                        value = currentPassword,
-                        onValueChange = { currentPassword = it },
+                        value = currentPassword, onValueChange = { currentPassword = it },
                         label = { Text("Текуща парола") },
                         visualTransformation = if (currentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { currentPasswordVisible = !currentPasswordVisible }) {
-                                Icon(
-                                    if (currentPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null
-                                )
+                                Icon(if (currentPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null)
                             }
                         },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
+                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = newPassword,
-                        onValueChange = { newPassword = it },
+                        value = newPassword, onValueChange = { newPassword = it },
                         label = { Text("Нова парола") },
                         visualTransformation = if (newPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { newPasswordVisible = !newPasswordVisible }) {
-                                Icon(
-                                    if (newPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null
-                                )
+                                Icon(if (newPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null)
                             }
                         },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
+                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = confirmNewPassword,
-                        onValueChange = { confirmNewPassword = it },
+                        value = confirmNewPassword, onValueChange = { confirmNewPassword = it },
                         label = { Text("Потвърди новата парола") },
                         visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                                Icon(
-                                    if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null
-                                )
+                                Icon(if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null)
                             }
                         },
                         singleLine = true,
@@ -302,61 +225,75 @@ fun ProfileScreen(navController: NavController) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (currentPassword.isBlank() || newPassword.isBlank()) {
-                        changePasswordError = "Моля, попълнете всички полета"
-                        return@TextButton
-                    }
-                    if (newPassword != confirmNewPassword) {
-                        changePasswordError = "Паролите не съвпадат"
-                        return@TextButton
-                    }
-                    if (newPassword.length < 6) {
-                        changePasswordError = "Паролата трябва да е поне 6 символа"
-                        return@TextButton
-                    }
-
+                    if (currentPassword.isBlank() || newPassword.isBlank()) { changePasswordError = "Моля, попълнете всички полета"; return@TextButton }
+                    if (newPassword != confirmNewPassword) { changePasswordError = "Паролите не съвпадат"; return@TextButton }
+                    if (newPassword.length < 6) { changePasswordError = "Паролата трябва да е поне 6 символа"; return@TextButton }
                     val token = sessionManager.fetchAuthToken() ?: return@TextButton
-
                     scope.launch {
                         try {
-                            val response = RetrofitClient.apiService.changePassword(
-                                "Bearer $token",
-                                ChangePasswordRequest(currentPassword, newPassword)
-                            )
+                            val response = RetrofitClient.apiService.changePassword("Bearer $token", ChangePasswordRequest(currentPassword, newPassword))
                             if (response.isSuccessful) {
                                 Toast.makeText(context, "Паролата беше сменена успешно!", Toast.LENGTH_SHORT).show()
                                 showChangePasswordDialog = false
-                                currentPassword = ""
-                                newPassword = ""
-                                confirmNewPassword = ""
-                                changePasswordError = null
-                            } else {
-                                changePasswordError = "Текущата парола е грешна"
-                            }
-                        } catch (_: Exception) {
-                            changePasswordError = "Грешка в мрежата"
-                        }
+                                currentPassword = ""; newPassword = ""; confirmNewPassword = ""; changePasswordError = null
+                            } else { changePasswordError = "Текущата парола е грешна" }
+                        } catch (_: Exception) { changePasswordError = "Грешка в мрежата" }
                     }
-                }) {
-                    Text("Запази")
-                }
+                }) { Text("Запази") }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showChangePasswordDialog = false
-                    currentPassword = ""
-                    newPassword = ""
-                    confirmNewPassword = ""
-                    changePasswordError = null
-                }) {
-                    Text("Отказ")
-                }
+                    currentPassword = ""; newPassword = ""; confirmNewPassword = ""; changePasswordError = null
+                }) { Text("Отказ") }
             }
         )
     }
 
-    val baseUrl = "http://10.0.2.2:8080"
-    val fullProfileImageUrl = currentUser?.profileImageUrl?.let { baseUrl + it }
+    // Change username dialog
+    if (showChangeUsernameDialog) {
+        AlertDialog(
+            onDismissRequest = { showChangeUsernameDialog = false; newUsername = ""; changeUsernameError = null },
+            title = { Text("Смяна на потребителско име") },
+            text = {
+                Column {
+                    changeUsernameError?.let {
+                        Text(it, color = Color.Red, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    OutlinedTextField(
+                        value = newUsername, onValueChange = { newUsername = it },
+                        label = { Text("Ново потребителско име") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newUsername.isBlank()) { changeUsernameError = "Моля, въведи потребителско име"; return@TextButton }
+                    val token = sessionManager.fetchAuthToken() ?: return@TextButton
+                    scope.launch {
+                        try {
+                            val response = RetrofitClient.apiService.changeUsername("Bearer $token", ChangeUsernameRequest(newUsername))
+                            if (response.isSuccessful) {
+                                Toast.makeText(context, "Потребителското име беше сменено!", Toast.LENGTH_SHORT).show()
+                                val meResponse = RetrofitClient.apiService.getMe("Bearer $token")
+                                if (meResponse.isSuccessful) currentUser = meResponse.body()
+                                showChangeUsernameDialog = false; newUsername = ""; changeUsernameError = null
+                            } else { changeUsernameError = "Потребителското име вече е заето" }
+                        } catch (_: Exception) { changeUsernameError = "Грешка в мрежата" }
+                    }
+                }) { Text("Запази") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChangeUsernameDialog = false; newUsername = ""; changeUsernameError = null }) { Text("Отказ") }
+            }
+        )
+    }
+
+    val fullProfileImageUrl = currentUser?.profileImageUrl?.let {
+        RetrofitClient.BASE_URL.trimEnd('/') + it
+    }
 
     Scaffold(
         topBar = {
@@ -364,7 +301,7 @@ fun ProfileScreen(navController: NavController) {
                 title = { Text("Профил") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 }
             )
@@ -373,91 +310,150 @@ fun ProfileScreen(navController: NavController) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(24.dp),
+                .padding(paddingValues),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
-
-            if (fullProfileImageUrl != null) {
-                AsyncImage(
-                    model = fullProfileImageUrl,
-                    contentDescription = "Профилна снимка",
-                    modifier = Modifier
-                        .size(100.dp)
-                        .clip(CircleShape)
-                )
-            } else {
+            // Avatar section
+            Column(
+                modifier = Modifier.padding(vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(100.dp)
-                        .background(avatarColor, CircleShape),
-                    contentAlignment = Alignment.Center
+                        .size(88.dp)
+                        .clickable { imagePickerLauncher.launch("image/*") }
                 ) {
-                    Text(
-                        text = firstLetter,
-                        color = Color.White,
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (fullProfileImageUrl != null) {
+                        AsyncImage(
+                            model = fullProfileImageUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(88.dp).clip(CircleShape)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier.size(88.dp).background(avatarColor, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(firstLetter, color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .align(Alignment.BottomEnd)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
+                Spacer(Modifier.height(10.dp))
+                Text(username, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                Text(email, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
 
-            Button(
-                onClick = { imagePickerLauncher.launch("image/*") },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isUploadingProfileImage
-            ) {
-                Text(if (isUploadingProfileImage) "Качване..." else "Смени профилната снимка")
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
+            // ACCOUNT section
             Text(
-                text = email,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
+                "ACCOUNT",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 4.dp)
             )
 
-            Spacer(modifier = Modifier.height(48.dp))
+            ProfileRow(
+                icon = Icons.Default.Person,
+                iconBackground = Color(0xFFE3F2FD),
+                iconTint = Color(0xFF1565C0),
+                title = "Смяна на потребителско име",
+                subtitle = username,
+                onClick = { newUsername = username; showChangeUsernameDialog = true }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(start = 70.dp))
+
+            ProfileRow(
+                icon = Icons.Default.Lock,
+                iconBackground = MaterialTheme.colorScheme.surfaceVariant,
+                iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                title = "Смяна на парола",
+                onClick = { showChangePasswordDialog = true }
+            )
+
             HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
 
-            Button(
-                onClick = { showChangePasswordDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Text("Смени паролата", fontSize = 16.sp)
+            // ACTIONS section
+            Text(
+                "ACTIONS",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 4.dp)
+            )
+
+            ProfileRow(
+                icon = Icons.AutoMirrored.Filled.ExitToApp,
+                iconBackground = Color(0xFFFBE9E7),
+                iconTint = Color(0xFFBF360C),
+                title = "Изход",
+                titleColor = Color(0xFFBF360C),
+                showArrow = false,
+                onClick = { showLogoutDialog = true }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(start = 70.dp))
+
+            ProfileRow(
+                icon = Icons.Default.Delete,
+                iconBackground = Color(0xFFFFEBEE),
+                iconTint = Color(0xFFC62828),
+                title = "Изтрий акаунта",
+                titleColor = Color(0xFFC62828),
+                showArrow = false,
+                onClick = { showDeleteAccountDialog = true }
+            )
+
+            HorizontalDivider()
+        }
+    }
+}
+
+@Composable
+private fun ProfileRow(
+    icon: ImageVector,
+    iconBackground: Color,
+    iconTint: Color,
+    title: String,
+    subtitle: String? = null,
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
+    showArrow: Boolean = true,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(38.dp).background(iconBackground, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, color = titleColor)
+            if (subtitle != null) {
+                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Button(
-                onClick = { showLogoutDialog = true },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Text("Изход", color = Color.White, fontSize = 16.sp)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Button(
-                onClick = { showDeleteAccountDialog = true },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                enabled = !isDeleting
-            ) {
-                Text("Изтрий акаунта", color = Color.White, fontSize = 16.sp)
-            }
+        }
+        if (showArrow) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
         }
     }
 }

@@ -3,12 +3,14 @@ package com.example.chat_app_android.notifications
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Context
+import android.app.PendingIntent
+import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import com.example.chat_app_android.MainActivity
 import com.example.chat_app_android.R
 import com.example.chat_app_android.data.local.SessionManager
 import com.example.chat_app_android.data.models.DeviceTokenRequest
@@ -50,12 +52,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val title = message.notification?.title ?: "Ново съобщение"
         val body = message.notification?.body ?: "Получихте съобщение"
+        val chatId = message.data["chatId"]?.toLongOrNull() ?: -1L
+        val otherUsername = message.data["senderUsername"] ?: ""
 
-        showNotification(title, body)
+        showNotification(title, body, chatId, otherUsername)
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    private fun showNotification(title: String, body: String) {
+    private fun showNotification(title: String, body: String, chatId: Long, otherUsername: String) {
         val channelId = "chat_messages"
 
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -69,12 +73,27 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             manager.createNotificationChannel(channel)
         }
 
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("open_chat", true)
+            putExtra("chat_id", chatId)
+            putExtra("other_username", otherUsername)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            chatId.toInt(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
             .build()
 
         NotificationManagerCompat.from(this)

@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -43,7 +42,16 @@ fun App() {
 
     key(showLogin) {
         val navController = rememberNavController()
-        val startDestination = if (showLogin) "login" else "chat-list"
+
+        val mainActivity = activity as? com.example.chat_app_android.MainActivity
+        val pendingProfileImageUrl = mainActivity?.pendingProfileImageUrl ?: ""
+        val pendingChatId = mainActivity?.pendingChatId ?: -1L
+        val pendingOtherUsername = mainActivity?.pendingOtherUsername ?: ""
+
+        if (pendingChatId != -1L) {
+            mainActivity?.pendingChatId = -1L
+            mainActivity?.pendingOtherUsername = ""
+        }
 
         if (showLogin) {
             LaunchedEffect(Unit) {
@@ -51,34 +59,19 @@ fun App() {
             }
         }
 
-        LaunchedEffect(navController, showLogin) {
-            if (showLogin) return@LaunchedEffect
-
-            val intent = activity?.intent ?: return@LaunchedEffect
-            val openChat = intent.getBooleanExtra("open_chat", false)
-            val chatId = intent.getLongExtra("chat_id", -1L)
-            val otherUsername = intent.getStringExtra("other_username").orEmpty()
-
-            if (openChat && chatId != -1L) {
-                navController.navigate("chat/$chatId/${otherUsername.encodeNavArg()}") {
-                    launchSingleTop = true
-                }
-
-                intent.removeExtra("open_chat")
-                intent.removeExtra("chat_id")
-                intent.removeExtra("other_username")
+        LaunchedEffect(Unit) {
+            if (!showLogin && pendingChatId != -1L) {
+                navController.navigate("chat/$pendingChatId/${pendingOtherUsername.encodeNavArg()}/${Uri.encode(pendingProfileImageUrl.ifBlank { "null" })}")
             }
         }
 
-        NavHost(navController = navController, startDestination = startDestination) {
+        NavHost(navController = navController, startDestination = if (showLogin) "login" else "chat-list") {
             composable("login") { LoginScreen(navController) }
             composable("register") { RegisterScreen(navController) }
             composable("forgot-password") { ForgotPasswordScreen(navController) }
             composable(
                 route = "reset-password/{email}",
-                arguments = listOf(
-                    navArgument("email") { type = NavType.StringType }
-                )
+                arguments = listOf(navArgument("email") { type = NavType.StringType })
             ) { backStackEntry ->
                 val email = backStackEntry.arguments?.getString("email") ?: ""
                 ResetPasswordScreen(navController = navController, email = email)
@@ -86,15 +79,25 @@ fun App() {
             composable("chat-list") { ChatListScreen(navController) }
             composable("profile") { ProfileScreen(navController) }
             composable(
-                route = "chat/{chatId}/{otherUsername}",
+                route = "chat/{chatId}/{otherUsername}/{otherUserProfileImageUrl}",
                 arguments = listOf(
                     navArgument("chatId") { type = NavType.LongType },
-                    navArgument("otherUsername") { type = NavType.StringType }
+                    navArgument("otherUsername") { type = NavType.StringType },
+                    navArgument("otherUserProfileImageUrl") {
+                        type = NavType.StringType
+                        nullable = true
+                    }
                 )
             ) { backStackEntry ->
                 val chatId = backStackEntry.arguments?.getLong("chatId") ?: 0L
                 val otherUsername = backStackEntry.arguments?.getString("otherUsername") ?: ""
-                ChatScreen(navController = navController, chatId = chatId, otherUsername = otherUsername)
+                val otherUserProfileImageUrl = backStackEntry.arguments?.getString("otherUserProfileImageUrl")
+                ChatScreen(
+                    navController = navController,
+                    chatId = chatId,
+                    otherUsername = otherUsername,
+                    otherUserProfileImageUrl = otherUserProfileImageUrl
+                )
             }
         }
     }

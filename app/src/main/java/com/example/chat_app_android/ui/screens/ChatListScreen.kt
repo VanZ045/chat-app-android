@@ -2,6 +2,7 @@ package com.example.chat_app_android.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -64,12 +66,13 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.chat_app_android.data.models.ChatSummaryModel
 import com.example.chat_app_android.data.models.UserModel
+import com.example.chat_app_android.data.network.RetrofitClient
 import com.example.chat_app_android.ui.viewmodels.ChatListViewModel
 import kotlin.math.absoluteValue
 
 private fun buildImageUrl(relativePath: String?): String? {
     if (relativePath.isNullOrBlank()) return null
-    return "http://10.0.2.2:8080$relativePath"
+    return "${RetrofitClient.BASE_URL.trimEnd('/')}$relativePath"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,7 +125,7 @@ fun ChatListScreen(
 
     LaunchedEffect(navigateToChat) {
         navigateToChat?.let { chat ->
-            navController.navigate("chat/${chat.chatId}/${chat.otherUsername}")
+            navController.navigate("chat/${chat.chatId}/${Uri.encode(chat.otherUsername)}/${Uri.encode(chat.otherUserProfileImageUrl ?: "null")}")
             viewModel.clearNavigation()
         }
     }
@@ -300,7 +303,7 @@ fun ChatListScreen(
                                     currentUserId = currentUserId,
                                     isTyping = typingChats.contains(chat.chatId),
                                     onClick = {
-                                        navController.navigate("chat/${chat.chatId}/${chat.otherUsername}")
+                                        navController.navigate("chat/${chat.chatId}/${Uri.encode(chat.otherUsername)}/${Uri.encode(chat.otherUserProfileImageUrl ?: "null")}")
                                     },
                                     onLongClick = {
                                         chatToDelete = chat
@@ -359,6 +362,7 @@ fun ChatItem(
             AsyncImage(
                 model = fullProfileImageUrl,
                 contentDescription = "Профилна снимка",
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(54.dp)
                     .clip(CircleShape)
@@ -437,6 +441,7 @@ fun UserItem(user: UserModel, onClick: () -> Unit) {
             AsyncImage(
                 model = fullProfileImageUrl,
                 contentDescription = "Профилна снимка",
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(54.dp)
                     .clip(CircleShape)

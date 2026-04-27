@@ -102,7 +102,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val client = StompClient(OkHttpWebSocketClient())
-                stompSession = client.connect("ws://192.168.1.15:8080/ws")
+                stompSession = client.connect("ws://192.168.0.7:8080/ws")
 
                 launch {
                     try {

@@ -3,6 +3,7 @@ package com.example.chat_app_android.data.network
 import com.example.chat_app_android.data.models.AuthRequest
 import com.example.chat_app_android.data.models.AuthResponse
 import com.example.chat_app_android.data.models.ChangePasswordRequest
+import com.example.chat_app_android.data.models.ChangeUsernameRequest
 import com.example.chat_app_android.data.models.ChatSummaryModel
 import com.example.chat_app_android.data.models.DeviceTokenRequest
 import com.example.chat_app_android.data.models.EditMessageRequest
@@ -125,4 +126,10 @@ interface ApiService{
         @Header("Authorization") token: String,
         @Part file: MultipartBody.Part
     ): Response<Unit>
+
+    @PUT("api/users/me/username")
+    suspend fun changeUsername(
+        @Header("Authorization") token: String,
+        @Body request: ChangeUsernameRequest
+    ): Response<Void>
 }
