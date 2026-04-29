@@ -100,6 +100,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val currentUserId = viewModel.getCurrentUserId()
     val snackbarHostState = remember { SnackbarHostState() }
+    var selectedImageUrl by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(chatId) {
         viewModel.enterActiveChat(chatId)
@@ -360,6 +361,9 @@ fun ChatScreen(
                                 },
                                 onDeleteRequest = { selectedMessage ->
                                     viewModel.deleteMessage(chatId, selectedMessage.id)
+                                },
+                                onImageClick = { imageUrl ->
+                                    selectedImageUrl = imageUrl
                                 }
                             )
                         }
@@ -418,6 +422,25 @@ fun ChatScreen(
                     }
                 )
             }
+
+            selectedImageUrl?.let { imageUrl ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.95f))
+                        .combinedClickable(
+                            onClick = { selectedImageUrl = null },
+                            onLongClick = {}
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Снимка на цял екран",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
     }
 }
@@ -443,7 +466,8 @@ fun MessageBubble(
     isOwnMessage: Boolean,
     showStatusLabel: Boolean,
     onEditRequest: (MessageModel) -> Unit,
-    onDeleteRequest: (MessageModel) -> Unit
+    onDeleteRequest: (MessageModel) -> Unit,
+    onImageClick: (String) -> Unit
 ) {
     val formattedTime = remember(message.createdAt) {
         try {
@@ -501,7 +525,11 @@ fun MessageBubble(
                                 model = fullImageUrl,
                                 contentDescription = "Изпратена снимка",
                                 modifier = Modifier
-                                    .fillMaxSize()
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = { onImageClick(fullImageUrl) },
+                                        onLongClick = { if (isOwnMessage) showMenu = true }
+                                    )
                             )
                         } else {
                             Text(

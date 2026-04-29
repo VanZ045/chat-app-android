@@ -98,7 +98,7 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
                 val client = StompClient(OkHttpWebSocketClient())
                 // for emulator use ws://10.0.2.2:8080/ws
                 // for phone use ws://192.168.1.15:8080/ws
-                stompSession = client.connect("ws://192.168.0.7:8080/ws")
+                stompSession = client.connect("ws://10.0.2.2:8080/ws")
 
                 launch{
                     stompSession!!.subscribeText("/topic/user/$userId")
