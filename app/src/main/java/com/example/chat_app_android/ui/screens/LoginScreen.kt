@@ -57,8 +57,7 @@ fun LoginScreen(navController: NavController, viewModel: LoginViewModel = viewMo
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFEDE8E6)),
+            .fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
