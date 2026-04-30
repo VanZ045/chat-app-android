@@ -8,6 +8,8 @@ data class MessageModel (
     val type: String,
     val content: String?,
     val imageUrl: String?,
+    val fileUrl: String?,
+    val fileName: String?,
     val createdAt: String,
     val status: String = "SENT"
 )

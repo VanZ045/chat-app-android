@@ -1,14 +1,18 @@
 package com.example.chat_app_android.ui.screens
 
 import android.Manifest
+import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -22,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,8 +38,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -65,8 +74,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -79,6 +93,7 @@ import com.example.chat_app_android.data.network.RetrofitClient
 import com.example.chat_app_android.ui.viewmodels.ChatViewModel
 import java.io.File
 import kotlin.math.absoluteValue
+import androidx.core.net.toUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +130,14 @@ fun ChatScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             viewModel.uploadImage(chatId, uri)
+        }
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if(uri != null){
+            viewModel.uploadFile(chatId, uri)
         }
     }
 
@@ -233,53 +256,91 @@ fun ChatScreen(
             )
         },
         bottomBar = {
+            var isExpanded by remember { mutableStateOf(false) }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
                     .imePadding(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                AnimatedVisibility(
+                    visible = !isExpanded,
+                    enter = fadeIn() + slideInHorizontally(),
+                    exit = fadeOut() + slideOutHorizontally()
                 ) {
-                    Text(
-                        text = "+",
-                        fontSize = 24.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row {
+                        IconButton(
+                            onClick = { imagePickerLauncher.launch("image/*") },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(
+                                Icons.Default.Photo,
+                                contentDescription = "Изпрати снимка",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(Icons.Default.CameraAlt,
+                                contentDescription = "Камера",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = { filePickerLauncher.launch("*/*") },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(Icons.Default.AttachFile,
+                                contentDescription = "Прикачи файл",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                IconButton(
-                    onClick = {
-                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                    },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                AnimatedVisibility(
+                    visible = isExpanded,
+                    enter = fadeIn() + slideInHorizontally(),
+                    exit = fadeOut() + slideOutHorizontally()
                 ) {
-                    Icon(
-                        Icons.Default.CameraAlt,
-                        contentDescription = "Камера",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    IconButton(
+                        onClick = {
+                            isExpanded = false
+                            messageText = ""
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-
-                Spacer(modifier = Modifier.width(8.dp))
 
                 TextField(
                     value = messageText,
                     onValueChange = {
                         messageText = it
-                        if (it.isNotEmpty()) viewModel.onUserTyping(chatId)
+                        if (it.isNotEmpty()) {
+                            isExpanded = true
+                            viewModel.onUserTyping(chatId)
+                        } else {
+                            isExpanded = false
+                        }
                     },
                     placeholder = { Text("Съобщение...") },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f),
                     shape = RoundedCornerShape(24.dp),
                     colors = TextFieldDefaults.colors(
                         focusedIndicatorColor = Color.Transparent,
@@ -295,6 +356,7 @@ fun ChatScreen(
                         if (messageText.isNotBlank()) {
                             viewModel.sendMessage(chatId, messageText)
                             messageText = ""
+                            isExpanded = false
                         }
                     },
                     modifier = Modifier
@@ -364,7 +426,8 @@ fun ChatScreen(
                                 },
                                 onImageClick = { imageUrl ->
                                     selectedImageUrl = imageUrl
-                                }
+                                },
+                                context = context
                             )
                         }
                     }
@@ -467,7 +530,8 @@ fun MessageBubble(
     showStatusLabel: Boolean,
     onEditRequest: (MessageModel) -> Unit,
     onDeleteRequest: (MessageModel) -> Unit,
-    onImageClick: (String) -> Unit
+    onImageClick: (String) -> Unit,
+    context: Context
 ) {
     val formattedTime = remember(message.createdAt) {
         try {
@@ -511,10 +575,40 @@ fun MessageBubble(
             Column {
                 when (message.type) {
                     "TEXT" -> {
+                        val annotatedText = buildAnnotatedString {
+                            val text = message.content ?: ""
+                            val urlPattern = android.util.Patterns.WEB_URL
+                            val matcher = urlPattern.matcher(text)
+                            var lastEnd = 0
+
+                            while (matcher.find()) {
+                                val start = matcher.start()
+                                val end = matcher.end()
+                                val url = matcher.group()
+
+                                append(text.substring(lastEnd, start))
+
+                                pushLink(
+                                    LinkAnnotation.Url(
+                                        url = url,
+                                        styles = TextLinkStyles(
+                                            style = SpanStyle(
+                                                color = if (isOwnMessage) Color.White else MaterialTheme.colorScheme.primary,
+                                                textDecoration = TextDecoration.Underline
+                                            )
+                                        )
+                                    )
+                                )
+                                append(url)
+                                pop()
+                                lastEnd = end
+                            }
+                            append(text.substring(lastEnd))
+                        }
+
                         Text(
-                            text = message.content ?: "",
-                            color = if (isOwnMessage) Color.White
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = annotatedText,
+                            color = if (isOwnMessage) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 15.sp
                         )
                     }
@@ -538,6 +632,65 @@ fun MessageBubble(
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 15.sp
                             )
+                        }
+                    }
+
+                    "FILE" -> {
+                        val fullFileUrl = message.fileUrl?.let { RetrofitClient.BASE_URL.trimEnd('/') + it }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(
+                                    if (fullFileUrl != null) Modifier.combinedClickable(
+                                        onClick = {
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                data = fullFileUrl.toUri()
+                                            }
+                                            context.startActivity(intent)
+                                        },
+                                        onLongClick = { if (isOwnMessage) showMenu = true }
+                                    ) else Modifier
+                                )
+                                .padding(4.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.InsertDriveFile,
+                                contentDescription = null,
+                                tint = if (isOwnMessage) Color.White else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = message.fileName ?: "Файл",
+                                color = if (isOwnMessage) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 2,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (fullFileUrl != null) {
+                                IconButton(
+                                    onClick = {
+                                        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                                        val request = DownloadManager.Request(fullFileUrl.toUri()).apply {
+                                            setTitle(message.fileName ?: "Файл")
+                                            setDescription("Изтегляне...")
+                                            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                            setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, message.fileName ?: "file")
+                                        }
+                                        downloadManager.enqueue(request)
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Download,
+                                        contentDescription = "Изтегли",
+                                        tint = if (isOwnMessage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }

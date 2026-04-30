@@ -338,12 +338,14 @@ fun ChatItem(
     val lastMessageText = when {
         isTyping -> "пише..."
         chat.lastMessage.isEmpty() -> "Натисни, за да започнете чат"
-        chat.lastMessageSenderId == currentUserId -> when (chat.lastMessage) {
-            "[Image]" -> "Ти изпрати снимка"
+        chat.lastMessageSenderId == currentUserId -> when {
+            chat.lastMessage.startsWith("[File]") -> "Ти изпрати файл"
+            chat.lastMessage == "[Image]" -> "Ти изпрати снимка"
             else -> "Ти: ${chat.lastMessage}"
         }
-        else -> when (chat.lastMessage) {
-            "[Image]" -> "изпрати снимка"
+        else -> when {
+            chat.lastMessage.startsWith("[File]") -> "изпрати файл"
+            chat.lastMessage == "[Image]" -> "изпрати снимка"
             else -> chat.lastMessage
         }
     }
