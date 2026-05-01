@@ -102,7 +102,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val client = StompClient(OkHttpWebSocketClient())
-                stompSession = client.connect("ws://10.0.2.2:8080/ws")
+                // for emulator use ws://10.0.2.2:8080/ws
+                // for phone use ws://192.168.x.x:8080/ws
+                stompSession = client.connect("ws://192.168.x.x:8080/ws")
 
                 launch {
                     try {
@@ -310,6 +312,60 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _error.value = "Неуспешно качване на снимка: ${e.message}"
             }
         }
+    }
+
+    fun uploadFile(chatId: Long, fileUri: Uri) {
+        val token = sessionManager.fetchAuthToken()
+        if (token == null) { _sessionExpired.value = true; return }
+
+        viewModelScope.launch {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val contentResolver = context.contentResolver
+
+                val fileName = getFileName(context, fileUri) ?: "file"
+                val mimeType = contentResolver.getType(fileUri) ?: "application/octet-stream"
+
+                val tempFile = File.createTempFile("upload_", "_$fileName", context.cacheDir)
+                contentResolver.openInputStream(fileUri)?.use { input ->
+                    FileOutputStream(tempFile).use { input.copyTo(it) }
+                }
+
+                val requestFile = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
+                val multipartBody = MultipartBody.Part.createFormData("file", fileName, requestFile)
+
+                val response = RetrofitClient.apiService.uploadFile(
+                    token = "Bearer $token",
+                    chatId = chatId,
+                    file = multipartBody
+                )
+
+                when (response.code()) {
+                    200 -> {
+                        val uploadedMessage = response.body()
+                        if (uploadedMessage != null && _messages.value.none { it.id == uploadedMessage.id }) {
+                            _messages.value = _messages.value + uploadedMessage
+                        }
+                    }
+                    401 -> { sessionManager.clearSession(); _sessionExpired.value = true }
+                    else -> _error.value = "Неуспешно качване на файл"
+                }
+            } catch (e: Exception) {
+                _error.value = "Неуспешно качване на файл: ${e.message}"
+            }
+        }
+    }
+
+    private fun getFileName(context: android.content.Context, uri: Uri): String? {
+        var name: String? = null
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val index = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (index != -1) name = it.getString(index)
+            }
+        }
+        return name
     }
 
     private fun uriToFile(uri: Uri): File {

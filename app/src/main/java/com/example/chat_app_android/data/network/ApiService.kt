@@ -132,4 +132,12 @@ interface ApiService{
         @Header("Authorization") token: String,
         @Body request: ChangeUsernameRequest
     ): Response<Void>
+
+    @Multipart
+    @POST("api/chats/{chatId}/files")
+    suspend fun uploadFile(
+        @Header("Authorization") token: String,
+        @Path("chatId") chatId: Long,
+        @Part file: MultipartBody.Part
+    ): Response<MessageModel>
 }
