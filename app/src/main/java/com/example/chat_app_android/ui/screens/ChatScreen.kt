@@ -94,6 +94,22 @@ import com.example.chat_app_android.ui.viewmodels.ChatViewModel
 import java.io.File
 import kotlin.math.absoluteValue
 import androidx.core.net.toUri
+import android.content.ContentValues
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,6 +132,7 @@ fun ChatScreen(
     val currentUserId = viewModel.getCurrentUserId()
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedImageUrl by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     DisposableEffect(chatId) {
         viewModel.enterActiveChat(chatId)
@@ -487,21 +504,91 @@ fun ChatScreen(
             }
 
             selectedImageUrl?.let { imageUrl ->
+                var scale by remember(imageUrl) { mutableStateOf(1f) }
+                var offset by remember(imageUrl) { mutableStateOf(Offset.Zero) }
+                var isDownloading by remember(imageUrl) { mutableStateOf(false) }
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.95f))
-                        .combinedClickable(
-                            onClick = { selectedImageUrl = null },
-                            onLongClick = {}
-                        ),
+                        .background(Color.Black.copy(alpha = 0.96f)),
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
                         model = imageUrl,
                         contentDescription = "Снимка на цял екран",
-                        modifier = Modifier.fillMaxWidth()
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offset.x,
+                                translationY = offset.y
+                            )
+                            .pointerInput(imageUrl) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                    scale = newScale
+
+                                    if (newScale > 1f) {
+                                        offset += pan
+                                    } else {
+                                        offset = Offset.Zero
+                                    }
+                                }
+                            }
+                            .clickable(enabled = scale == 1f) {
+                                selectedImageUrl = null
+                            }
                     )
+
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                if (!isDownloading) {
+                                    scope.launch {
+                                        isDownloading = true
+                                        val success = downloadImageToGallery(context, imageUrl)
+                                        isDownloading = false
+
+                                        Toast.makeText(
+                                            context,
+                                            if (success) "Снимката е свалена успешно" else "Неуспешно сваляне на снимката",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                        ) {
+                            Text(
+                                text = if (isDownloading) "..." else "↓",
+                                color = Color.White,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { selectedImageUrl = null },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Затвори",
+                                tint = Color.White
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -521,6 +608,42 @@ private fun createImageUri(context: Context): Uri {
         "${context.packageName}.provider",
         imageFile
     )
+}
+
+private suspend fun downloadImageToGallery(context: Context, imageUrl: String): Boolean {
+    return withContext(Dispatchers.IO) {
+        try {
+            val inputStream = URL(imageUrl).openStream()
+            val fileName = "chat_image_${System.currentTimeMillis()}.jpg"
+
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/ChatApp")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+
+            val imageUri = resolver.insert(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues
+            ) ?: return@withContext false
+
+            resolver.openOutputStream(imageUri)?.use { outputStream ->
+                inputStream.use { input ->
+                    input.copyTo(outputStream)
+                }
+            }
+
+            contentValues.clear()
+            contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(imageUri, contentValues, null, null)
+
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 }
 
 @Composable
