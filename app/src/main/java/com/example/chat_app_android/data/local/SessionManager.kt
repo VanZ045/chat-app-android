@@ -20,7 +20,7 @@ class SessionManager(context: Context) {
         return prefs.getString(KEY_TOKEN, null)
     }
 
-    fun fetchTokenExpiry(): Long{
+    fun fetchTokenExpiry(): Long {
         val token = fetchAuthToken() ?: return 0L
         return try {
             val payload = token.split(".")[1]
@@ -28,7 +28,8 @@ class SessionManager(context: Context) {
             val json = String(decoded)
             val expSeconds = org.json.JSONObject(json).getLong("exp")
             expSeconds * 1000L
-        }catch (e: Exception){
+        } catch (e: Exception) {
+            android.util.Log.e("SessionManager", "Failed to parse token expiry", e)
             0L
         }
     }
