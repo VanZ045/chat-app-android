@@ -154,11 +154,7 @@ fun LoginScreen(
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
-                    viewModel.loginUser(
-                        email = email,
-                        password = password,
-                        context = context
-                    )
+                    viewModel.loginUser(email = email, password = password, context = context)
                 }
             },
             enabled = !viewModel.isLoading

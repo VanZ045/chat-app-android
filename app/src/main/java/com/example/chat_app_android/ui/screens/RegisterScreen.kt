@@ -2,7 +2,6 @@ package com.example.chat_app_android.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,34 +47,37 @@ import com.example.chat_app_android.R
 import com.example.chat_app_android.ui.viewmodels.RegisterViewModel
 
 @Composable
-fun RegisterScreen(navController: NavController, viewModel: RegisterViewModel = viewModel()) {
-    var username by remember {
-        mutableStateOf("")
-    }
-    var email by remember {
-        mutableStateOf("")
-    }
-    var password by remember {
-        mutableStateOf("")
-    }
-
-    viewModel.email = email
-    viewModel.username = username
-    viewModel.password = password
-
-    val context = LocalContext.current
+fun RegisterScreen(
+    navController: NavController,
+    viewModel: RegisterViewModel = viewModel()
+) {
     var usernameError by remember { mutableStateOf(false) }
     var emailError by remember { mutableStateOf(false) }
     var passwordError by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    LaunchedEffect(viewModel.registrationSucceeded) {
+        if (viewModel.registrationSucceeded) {
+            navController.navigate("login") {
+                popUpTo("register") { inclusive = true }
+            }
+            viewModel.consumeRegistrationSuccess()
+        }
+    }
+
+    viewModel.successMessage?.let { message ->
+        LaunchedEffect(message) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            viewModel.clearSuccessMessage()
+        }
+    }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
         Image(
             painter = painterResource(id = R.drawable.edit),
             contentDescription = "Изображение за регистрация",
@@ -97,29 +99,29 @@ fun RegisterScreen(navController: NavController, viewModel: RegisterViewModel = 
         Spacer(modifier = Modifier.height(4.dp))
 
         OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            label = {
-                Text(text = "Потребителско име")
+            value = viewModel.username,
+            onValueChange = {
+                viewModel.onUsernameChange(it)
+                if (usernameError && it.isNotBlank()) usernameError = false
             },
-            modifier = Modifier,
+            label = { Text("Потребителско име") },
             leadingIcon = {
                 Icon(Icons.Default.Face, contentDescription = null)
             },
             shape = RoundedCornerShape(16.dp),
             isError = usernameError,
-            placeholder = { Text(text = "мин. 3 символа") }
+            placeholder = { Text("мин. 3 символа") }
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = {
-                Text(text = "Имейл адрес")
+            value = viewModel.email,
+            onValueChange = {
+                viewModel.onEmailChange(it)
+                if (emailError && it.isNotBlank()) emailError = false
             },
-            modifier = Modifier,
+            label = { Text("Имейл адрес") },
             leadingIcon = {
                 Icon(Icons.Default.Email, contentDescription = null)
             },
@@ -131,21 +133,26 @@ fun RegisterScreen(navController: NavController, viewModel: RegisterViewModel = 
         Spacer(modifier = Modifier.height(4.dp))
 
         OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
+            value = viewModel.password,
+            onValueChange = {
+                viewModel.onPasswordChange(it)
+                if (passwordError && it.isNotBlank()) passwordError = false
+            },
             label = { Text("Парола") },
-            visualTransformation = if (passwordVisible)
+            visualTransformation = if (passwordVisible) {
                 VisualTransformation.None
-            else
-                PasswordVisualTransformation(),
+            } else {
+                PasswordVisualTransformation()
+            },
             leadingIcon = {
                 Icon(Icons.Default.Lock, contentDescription = null)
             },
             trailingIcon = {
-                val image = if (passwordVisible)
+                val image = if (passwordVisible) {
                     Icons.Default.Visibility
-                else
+                } else {
                     Icons.Default.VisibilityOff
+                }
 
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                     Icon(image, contentDescription = null)
@@ -160,13 +167,13 @@ fun RegisterScreen(navController: NavController, viewModel: RegisterViewModel = 
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             Button(
                 onClick = {
-                    emailError = email.isBlank()
-                    passwordError = password.isBlank()
-                    usernameError = username.isBlank()
+                    emailError = viewModel.email.isBlank()
+                    passwordError = viewModel.password.isBlank()
+                    usernameError = viewModel.username.isBlank()
 
                     if (emailError || passwordError || usernameError) {
                         Toast.makeText(
@@ -175,31 +182,28 @@ fun RegisterScreen(navController: NavController, viewModel: RegisterViewModel = 
                             Toast.LENGTH_LONG
                         ).show()
                     } else {
-                        viewModel.registerUser(navController)
+                        viewModel.registerUser()
                     }
                 },
                 enabled = !viewModel.isLoading && viewModel.isFormValid
             ) {
                 if (viewModel.isLoading) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
                 } else {
-                    Text(text = "Регистрация")
-                }
-            }
-
-            if (viewModel.successMessage != null) {
-                LaunchedEffect(viewModel.successMessage) {
-                    Toast.makeText(context, viewModel.successMessage, Toast.LENGTH_SHORT).show()
-                    viewModel.successMessage = null
+                    Text("Регистрация")
                 }
             }
 
             Button(onClick = { navController.navigate("login") }) {
-                Text(text = "Назад")
+                Text("Назад")
             }
         }
 
         viewModel.errorMessage?.let {
+            Spacer(modifier = Modifier.height(12.dp))
             Text(text = it, color = Color.Red)
         }
     }
